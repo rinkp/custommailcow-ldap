@@ -34,7 +34,7 @@ def add_user(email, name, active, quotum):
         'quota': str(quotum),
         'password': password,
         'password2': password,
-        "active": 1 if active else 0
+        "active": 1 if active else 2 # Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
     }
 
     __post_request('api/v1/add/mailbox', json_data)
@@ -43,19 +43,20 @@ def add_user(email, name, active, quotum):
         'items': [email],
         'attr': {
             'user_acl': [
-                "spam_alias",
-                "tls_policy",
-                "spam_score",
-                "spam_policy",
-                "delimiter_action",
-                # "syncjobs",
-                # "eas_reset",
-                "quarantine",
-                # "sogo_profile_reset",
-                # "quarantine_attachments",
-                "quarantine_notification",
+                "spam_alias", #Temporary aliases
+                "tls_policy", #TLS policy
+                "spam_score", # Spam score
+                "spam_policy", #Blacklist/Whitelist
+                "delimiter_action", #Delimiter action
+                # "syncjobs", #Sync jobs
+                # "eas_reset", #Reset EAS Devices
+                # "sogo_profile_reset", #Reset SOGo profile
+                "quarantine", #Quarantine actions
+                # "quarantine_attachments", #Quarantine attachments
+                "quarantine_notification"#, #Change quarantine notifications
+                #"quarantine_category", #Change quarantine notification category
                 # "app_passwds",
-                "pushover"
+                #"pushover"
             ]
         }
     }
@@ -66,7 +67,7 @@ def add_user(email, name, active, quotum):
 def edit_user(email, active=None, name=None):
     attr = {}
     if active is not None:
-        attr['active'] = 1 if active else 0
+        attr['active'] = 1 if active else 2
     if name is not None:
         attr['name'] = name
 
