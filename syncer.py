@@ -139,6 +139,7 @@ def apply_config(config_file, config_data):
 def read_config():
     required_config_keys = [
         'LDAP-MAILCOW_LDAP_URI',
+        'LDAP-MAILCOW_LDAP_GC_URI',
         'LDAP-MAILCOW_LDAP_DOMAIN',
         'LDAP-MAILCOW_LDAP_BASE_DN',
         'LDAP-MAILCOW_LDAP_BIND_DN',
@@ -173,9 +174,11 @@ def read_dovecot_passdb_conf_template():
         data = Template(f.read())
 
     return data.substitute(
-        ldap_uri=config['LDAP_URI'],
+        ldap_gc_uri=config['LDAP_GC_URI'],
         ldap_domain=config['LDAP_DOMAIN'],
-        ldap_base_dn=config['LDAP_BASE_DN']
+        ldap_base_dn=config['LDAP_BASE_DN'],
+        ldap_bind_dn=config['LDAP_BIND_DN'],
+        ldap_bind_dn_password=config['LDAP_BIND_DN_PASSWORD']
     )
 
 
