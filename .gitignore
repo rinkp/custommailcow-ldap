@@ -2,3 +2,21 @@ db
 conf
 __pycache__
 .vscode
+
+# API keys and secrets
+.env
+
+# Dependency directory
+node_modules
+bower_components
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Ignore built ts files
+dist/**/*
+
+# Editors
+.idea
+*.iml
