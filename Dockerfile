@@ -25,7 +25,7 @@ WORKDIR /usr/src/custommailcow-ldap
 COPY package*.json .
 
 # Install dependencies
-RUN npm i
+RUN npm ci
 
 # Copy over the tsconfig
 COPY tsconfig.json .
@@ -59,5 +59,4 @@ COPY --from=builder /usr/src/custommailcow-ldap/dist ./src
 RUN chown -R node:node .
 USER node
 
-EXPOSE 9194
 CMD ["node", "src/index.js"]
