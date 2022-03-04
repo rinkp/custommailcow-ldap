@@ -16,7 +16,11 @@ export class User {
 // TODO -> in ormconfig.json zetten
 // let db_file = 'db/ldap-mailcow.sqlite3'
 let userRepository : Repository<User>
-let session_time = new Date()
+let session_time : Date = new Date()
+
+export function set_session_time() {
+    session_time = new Date()
+}
 
 export async function initialize_database() {
     await createConnection().catch((error: any) => console.log(error));
