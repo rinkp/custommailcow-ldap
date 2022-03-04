@@ -80,6 +80,7 @@ export async function add_user(email: string, name: string, active: number, quot
  * @param active
  * @param name
  */
+// Todo add send from ACLs
 export async function edit_user(email: string, active?: number, name?: string) {
     let attr : Partial<MailboxEditAttributes> = {};
     // TODO -> active moet nog een integer worden ipv boolean
