@@ -14,8 +14,11 @@ const mcc = new MailCowClient("https://webmail.gewis.nl/", "XXXXXX-XXXXXX-XXXXXX
 // Set password length
 const password_length = 32;
 
-// Generate random alphanumerical password
-function generate_password(length: number) {
+/**
+ * Generate random password
+ * @param length - length of random password
+ */
+function generatePassword(length: number) {
     let result = '';
     let characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let charactersLength = characters.length;
@@ -24,15 +27,17 @@ function generate_password(length: number) {
 }
 
 /**
- *
- * @param email
- * @param name
- * @param active
- * @param quotum
+ * Add a user to Mailcow
+ * @param email - email of the new user
+ * @param name - name of the new user
+ * @param active - activity of the new user
+ * @param quotum - mailbox size of the new user
  */
-export async function add_user_api(email: string, name: string, active: number, quotum: number) {
-    let password = generate_password(password_length);
+export async function addUserAPI(email: string, name: string, active: number, quotum: number) {
+    // Generate password
+    let password = generatePassword(password_length);
 
+    // Set details of the net mailbox
     let mailbox_data : MailboxPostRequest = {
         // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
         'active': active,
@@ -47,8 +52,10 @@ export async function add_user_api(email: string, name: string, active: number, 
         'tls_enforce_out': false,
     };
 
+    // Create mailbox
     await mcc.mailbox.create(mailbox_data);
 
+    // Set ACL data of new mailbox
     let acl_data : ACLEditRequest = {
         'items': email,
         'attr': {
@@ -71,37 +78,32 @@ export async function add_user_api(email: string, name: string, active: number, 
         }
     };
 
+    // Adjust ACL data of new mailbox
     await mcc.mailbox.editUserACL(acl_data);
 }
 
 /**
- *
- * @param email
- * @param options
+ * Edit user in Mailcow
+ * @param email - email of user to be edited
+ * @param options - options to be edited
  */
 // Todo add send from ACLs
-export async function edit_user_api(email: string, options?: { active?: number, name?: string }) {
-    let attr : Partial<MailboxEditAttributes> = {};
-    if (options.active) attr['active'] = options.active;
-    if (options.name) attr['name'] = options.name;
-
+export async function editUserAPI(email: string, options?: { active?: number, name?: string }) {
     let mailbox_data : MailboxEditRequest = {
         'items': [email],
-        'attr': attr
+        'attr': options
     };
-
     await mcc.mailbox.edit(mailbox_data);
 }
 
 /**
- *
+ * Delete user from Mailcow
  * @param email
  */
-export async function delete_user_api(email: string) {
+export async function deleteUserAPI(email: string) {
     let mailbox_data : MailboxDeleteRequest = {
         'mailboxes': [email],
     };
-
     await mcc.mailbox.delete(mailbox_data);
 }
 
@@ -112,20 +114,22 @@ interface Response {
 }
 
 /**
- *
- * @param email
+ * Check if user exists in Mailcow
+ * @param email - email of user
  */
-export async function check_user_api(email: string) {
+export async function checkUserAPI(email: string) {
     let response : Response = {
         api_user_exists: false,
         api_user_active: 0,
     };
 
+    // Get mailbox data from user with email
     let mailbox_data = (await mcc.mailbox.get(email)
         .catch(e => {
             throw new Error(e)
         }))[0]
 
+    // If no data, return immediately, otherwise return response data
     if (mailbox_data) {
         response['api_user_exists'] = true
         // TODO -> dit kan misschien nog steeds fout zijn omdat active_int een int representation is van boolean

@@ -1,4 +1,5 @@
 ﻿import {Column, Entity, PrimaryColumn} from "typeorm";
+import {ActiveUserSetting} from "../types";
 
 @Entity()
 export class Users {
@@ -6,7 +7,7 @@ export class Users {
     email: string;
 
     @Column()
-    active: 0 | 1 | 2;
+    active: ActiveUserSetting;
 
     @Column()
     last_seen: Date;
