@@ -16,6 +16,8 @@ Thumbs.db
 
 # Ignore built ts files
 dist/**/*
+conf/**/*
+db/**/*
 
 # Editors
 .idea
