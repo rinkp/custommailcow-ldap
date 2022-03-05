@@ -17,7 +17,7 @@ WORKDIR /usr/src/custommailcow-ldap
 COPY package*.json .
 
 # Install dependencies
-RUN npm i
+RUN npm ci
 
 # Copy over the tsconfig
 COPY tsconfig.json .
