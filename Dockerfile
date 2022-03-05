@@ -4,14 +4,6 @@
 # RUN pip3 install --upgrade pip
 # RUN pip3 install python-ldap sqlalchemy requests
 
-COPY templates ./templates
-# Wat hiermee?
-# COPY api.py filedb.py syncer.py ./
-
-VOLUME [ "/db" ]
-VOLUME [ "/conf/dovecot" ]
-VOLUME [ "/conf/sogo" ]
-
 # ENTRYPOINT [ "python3", "syncer.py" ]
 
 # We build our container using node:13-alpine
@@ -40,17 +32,21 @@ RUN npm run build
 # Create production container.
 FROM node:13-alpine
 
+VOLUME [ "/db" ]
+VOLUME [ "/conf/dovecot" ]
+VOLUME [ "/conf/sogo" ]
+
 # Set correct dir.
 WORKDIR /usr/src/custommailcow-ldap
+
+# Copy over the template data
+COPY templates /usr/src/custommailcow-ldap/templates
 
 # Copy over the package and package-lock
 COPY package*.json .
 
 # Install production dependencies
 RUN npm install --only=production
-
-# Copy over the user data
-COPY data /usr/src/custommailcow-ldap/data
 
 # Copy over the source files from the builder
 COPY --from=builder /usr/src/custommailcow-ldap/dist ./src
@@ -59,5 +55,4 @@ COPY --from=builder /usr/src/custommailcow-ldap/dist ./src
 RUN chown -R node:node .
 USER node
 
-EXPOSE 9194
 CMD ["node", "src/index.js"]

@@ -6,9 +6,10 @@ import {
     MailboxEditRequest,
     MailboxPostRequest
 } from "ts-mailcow-api/src/types";
+import * as https from "https";
 
 // Create MailCowClient based on BASE_URL and API_KEY
-const mcc = new MailCowClient("https://demo.mailcow.email/", "390448-22B69F-FA37D9-19701B-6F033F");
+const mcc = new MailCowClient("https://webmail.gewis.nl/", "XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX", {httpsAgent: new https.Agent({ keepAlive: true })});
 
 // Set password length
 const password_length = 32;
@@ -29,13 +30,12 @@ function generate_password(length: number) {
  * @param active
  * @param quotum
  */
-export async function add_user(email: string, name: string, active: number, quotum: number) {
+export async function add_user_api(email: string, name: string, active: number, quotum: number) {
     let password = generate_password(password_length);
 
-    // TODO -> active moet nog een integer worden ipv boolean
     let mailbox_data : MailboxPostRequest = {
         // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
-        'active': !!active,
+        'active': active,
         'force_pw_update': false,
         'local_part': email.split('@')[0],
         'domain': email.split('@')[1],
@@ -77,15 +77,13 @@ export async function add_user(email: string, name: string, active: number, quot
 /**
  *
  * @param email
- * @param active
- * @param name
+ * @param options
  */
 // Todo add send from ACLs
-export async function edit_user(email: string, active?: number, name?: string) {
+export async function edit_user_api(email: string, options?: { active?: number, name?: string }) {
     let attr : Partial<MailboxEditAttributes> = {};
-    // TODO -> active moet nog een integer worden ipv boolean
-    if (active) attr['active'] = !!active;
-    if (name) attr['name'] = name;
+    if (options.active) attr['active'] = options.active;
+    if (options.name) attr['name'] = options.name;
 
     let mailbox_data : MailboxEditRequest = {
         'items': [email],
@@ -99,7 +97,7 @@ export async function edit_user(email: string, active?: number, name?: string) {
  *
  * @param email
  */
-export async function delete_user(email: string) {
+export async function delete_user_api(email: string) {
     let mailbox_data : MailboxDeleteRequest = {
         'mailboxes': [email],
     };
@@ -107,13 +105,33 @@ export async function delete_user(email: string) {
     await mcc.mailbox.delete(mailbox_data);
 }
 
+interface Response {
+    api_user_exists: boolean,
+    api_user_active: number,
+    api_name?: string,
+}
+
 /**
  *
  * @param email
  */
-export async function check_user(email: string) {
-    await mcc.mailbox.get(email)
+export async function check_user_api(email: string) {
+    let response : Response = {
+        api_user_exists: false,
+        api_user_active: 0,
+    };
+
+    let mailbox_data = (await mcc.mailbox.get(email)
         .catch(e => {
-            // TODO -> afhankelijk of bovenliggende implementatie veranderd (gezien python code denk ik wel)
-        })
+            throw new Error(e)
+        }))[0]
+
+    if (mailbox_data) {
+        response['api_user_exists'] = true
+        // TODO -> dit kan misschien nog steeds fout zijn omdat active_int een int representation is van boolean
+        response['api_user_active'] = mailbox_data['active_int']
+        response['api_name'] = mailbox_data['name']
+    }
+
+    return response
 }
