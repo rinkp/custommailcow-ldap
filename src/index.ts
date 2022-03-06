@@ -12,7 +12,7 @@ import path from "path";
 import {SearchResult} from "ldapts/Client";
 import {checkUserAPI, addUserAPI, editUserAPI} from "./api";
 
-import {ActiveUserSetting, APIUserData, Config, DBUserData} from "./types";
+import {ActiveUserSetting, APIUserData, Config, DBUserData, LDAPUserData} from "./types";
 
 // Set all default variables
 let config: Config = {
@@ -83,7 +83,7 @@ async function sync(): Promise<void> {
 
     // Loop over all LDAP entries
     // TODO how to type entry as LDAP result? -> Make LDAP interface?
-    for (let entry of ldap_results['searchEntries']) {
+    for (let entry of ldap_results['searchEntries'] as unknown as LDAPUserData[]) {
         try {
             // Check if LDAP user has email, if not, skip
             if (!entry['mail'] || entry['mail'].length === 0) {

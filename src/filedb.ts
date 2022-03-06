@@ -13,8 +13,8 @@ const options: ConnectionOptions = {
     ],
 }
 
-let userRepository : Repository<Users>;
-let session_time : Date = new Date();
+let userRepository: Repository<Users>;
+let session_time: Date = new Date();
 
 export function setSessionTime(): void {
     session_time = new Date()
@@ -34,7 +34,7 @@ export async function initializeDatabase(): Promise<void> {
 /**
  * Get all users from DB that have not been checked in current session but are active
  */
-export async function getUncheckedActiveUsers() : Promise<Users[]> {
+export async function getUncheckedActiveUsers(): Promise<Users[]> {
     return Promise.resolve(userRepository.find({
         select: ["email"],
         where: {
@@ -50,21 +50,21 @@ export async function getUncheckedActiveUsers() : Promise<Users[]> {
  * @param active - whether user is active
  */
 // Todo return boolean?
-export async function addUserFileDB(email: string, active: ActiveUserSetting) : Promise<void> {
-    let user : Users = Object.assign(new Users(), {
+export async function addUserFileDB(email: string, active: ActiveUserSetting): Promise<void> {
+    let user: Users = Object.assign(new Users(), {
         email,
         active,
         last_seen: session_time,
     })
-    await getConnection().manager.save(user)
+    await userRepository.save(user)
 }
 
 /**
  * Get a user data from database
  * @param email - mail from to be retrieved user
  */
-export async function checkUserFileDB(email: string) : Promise<DBUserData> {
-    let db_user_data : DBUserData = {
+export async function checkUserFileDB(email: string): Promise<DBUserData> {
+    let db_user_data: DBUserData = {
         db_user_exists: false,
         db_user_active: undefined
     }
@@ -95,7 +95,7 @@ export async function checkUserFileDB(email: string) : Promise<DBUserData> {
  * @param active - activity of user
  */
 // Todo return boolean?
-export async function userSetActiveToFileDB(email: string, active: ActiveUserSetting) : Promise<void> {
+export async function userSetActiveToFileDB(email: string, active: ActiveUserSetting): Promise<void> {
     // Retrieve user with email
     let user: Users = await userRepository.findOne({
         email: email
