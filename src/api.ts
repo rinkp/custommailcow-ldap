@@ -2,27 +2,28 @@
 import {
     ACLEditRequest,
     MailboxDeleteRequest,
-    MailboxEditAttributes,
     MailboxEditRequest,
     MailboxPostRequest
 } from "ts-mailcow-api/src/types";
 import * as https from "https";
+import {APIUserData} from "./types";
+import {Mailbox} from "ts-mailcow-api/dist/types";
 
 // Create MailCowClient based on BASE_URL and API_KEY
-const mcc = new MailCowClient("https://webmail.gewis.nl/", "XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX", {httpsAgent: new https.Agent({ keepAlive: true })});
+const mcc: MailCowClient = new MailCowClient("https://webmail.gewis.nl/", "XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX", {httpsAgent: new https.Agent({keepAlive: true})});
 
 // Set password length
-const password_length = 32;
+const password_length: number = 32;
 
 /**
  * Generate random password
  * @param length - length of random password
  */
-function generatePassword(length: number) {
-    let result = '';
-    let characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let charactersLength = characters.length;
-    for (let i = 0; i < length; i++ ) result += characters.charAt(Math.floor(Math.random() * charactersLength));
+function generatePassword(length: number): string {
+    let result: string = '';
+    let characters: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let charactersLength: number = characters.length;
+    for (let i = 0; i < length; i++) result += characters.charAt(Math.floor(Math.random() * charactersLength));
     return result;
 }
 
@@ -33,12 +34,13 @@ function generatePassword(length: number) {
  * @param active - activity of the new user
  * @param quotum - mailbox size of the new user
  */
-export async function addUserAPI(email: string, name: string, active: number, quotum: number) {
+// Todo return boolean?
+export async function addUserAPI(email: string, name: string, active: number, quotum: number): Promise<void> {
     // Generate password
-    let password = generatePassword(password_length);
+    let password: string = generatePassword(password_length);
 
     // Set details of the net mailbox
-    let mailbox_data : MailboxPostRequest = {
+    let mailbox_data: MailboxPostRequest = {
         // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
         'active': active,
         'force_pw_update': false,
@@ -56,7 +58,7 @@ export async function addUserAPI(email: string, name: string, active: number, qu
     await mcc.mailbox.create(mailbox_data);
 
     // Set ACL data of new mailbox
-    let acl_data : ACLEditRequest = {
+    let acl_data: ACLEditRequest = {
         'items': email,
         'attr': {
             'user_acl': [
@@ -68,9 +70,9 @@ export async function addUserAPI(email: string, name: string, active: number, qu
                 // "syncjobs",
                 // "eas_reset",
                 // "sogo_profile_reset",
-                    "quarantine",
+                "quarantine",
                 // "quarantine_attachments",
-                    "quarantine_notification",
+                "quarantine_notification",
                 // "quarantine_category",
                 // "app_passwds",
                 // "pushover"
@@ -88,8 +90,9 @@ export async function addUserAPI(email: string, name: string, active: number, qu
  * @param options - options to be edited
  */
 // Todo add send from ACLs
-export async function editUserAPI(email: string, options?: { active?: number, name?: string }) {
-    let mailbox_data : MailboxEditRequest = {
+// Todo return boolean?
+export async function editUserAPI(email: string, options?: { active?: number, name?: string }): Promise<void> {
+    let mailbox_data: MailboxEditRequest = {
         'items': [email],
         'attr': options
     };
@@ -100,42 +103,37 @@ export async function editUserAPI(email: string, options?: { active?: number, na
  * Delete user from Mailcow
  * @param email
  */
-export async function deleteUserAPI(email: string) {
-    let mailbox_data : MailboxDeleteRequest = {
+// Todo return boolean?
+export async function deleteUserAPI(email: string): Promise<void> {
+    let mailbox_data: MailboxDeleteRequest = {
         'mailboxes': [email],
     };
     await mcc.mailbox.delete(mailbox_data);
-}
-
-interface Response {
-    api_user_exists: boolean,
-    api_user_active: number,
-    api_name?: string,
 }
 
 /**
  * Check if user exists in Mailcow
  * @param email - email of user
  */
-export async function checkUserAPI(email: string) {
-    let response : Response = {
+export async function checkUserAPI(email: string): Promise<APIUserData> {
+    let api_user_data: APIUserData = {
         api_user_exists: false,
         api_user_active: 0,
     };
 
     // Get mailbox data from user with email
-    let mailbox_data = (await mcc.mailbox.get(email)
+    let mailbox_data: Mailbox = (await mcc.mailbox.get(email)
         .catch(e => {
             throw new Error(e)
         }))[0]
 
     // If no data, return immediately, otherwise return response data
     if (mailbox_data) {
-        response['api_user_exists'] = true
+        api_user_data['api_user_exists'] = true
         // TODO -> dit kan misschien nog steeds fout zijn omdat active_int een int representation is van boolean
-        response['api_user_active'] = mailbox_data['active_int']
-        response['api_name'] = mailbox_data['name']
+        api_user_data['api_user_active'] = mailbox_data['active_int']
+        api_user_data['api_name'] = mailbox_data['name']
     }
 
-    return response
+    return api_user_data
 }

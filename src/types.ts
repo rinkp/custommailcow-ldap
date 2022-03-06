@@ -9,4 +9,15 @@ export interface Config {
     LDAP_DOMAIN: string,
 }
 
+export interface DBUserData {
+    db_user_exists: boolean
+    db_user_active: number
+}
+
+export interface APIUserData {
+    api_user_exists: boolean,
+    api_user_active: number,
+    api_name?: string,
+}
+
 export type ActiveUserSetting = 0 | 1 | 2;

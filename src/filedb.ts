@@ -2,7 +2,7 @@
 import 'reflect-metadata'
 import {Users} from './entities/User'
 import fs from "fs";
-import {ActiveUserSetting} from "./types";
+import {ActiveUserSetting, DBUserData} from "./types";
 
 // Connection options for the DB
 const options: ConnectionOptions = {
@@ -49,8 +49,9 @@ export async function getUncheckedActiveUsers() : Promise<Users[]> {
  * @param email - mail entry in the database
  * @param active - whether user is active
  */
-export async function addUserFileDB(email: string, active: ActiveUserSetting) {
-    let user = Object.assign(new Users(), {
+// Todo return boolean?
+export async function addUserFileDB(email: string, active: ActiveUserSetting) : Promise<void> {
+    let user : Users = Object.assign(new Users(), {
         email,
         active,
         last_seen: session_time,
@@ -58,17 +59,11 @@ export async function addUserFileDB(email: string, active: ActiveUserSetting) {
     await getConnection().manager.save(user)
 }
 
-
-interface DBUserData {
-    db_user_exists: boolean
-    db_user_active: number
-}
-
 /**
  * Get a user data from database
  * @param email - mail from to be retrieved user
  */
-export async function checkUserFileDB(email: string) {
+export async function checkUserFileDB(email: string) : Promise<DBUserData> {
     let db_user_data : DBUserData = {
         db_user_exists: false,
         db_user_active: undefined
@@ -99,7 +94,8 @@ export async function checkUserFileDB(email: string) {
  * @param email - email of user
  * @param active - activity of user
  */
-export async function userSetActiveToFileDB(email: string, active: ActiveUserSetting) {
+// Todo return boolean?
+export async function userSetActiveToFileDB(email: string, active: ActiveUserSetting) : Promise<void> {
     // Retrieve user with email
     let user: Users = await userRepository.findOne({
         email: email
