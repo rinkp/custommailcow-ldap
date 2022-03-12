@@ -6,14 +6,21 @@ import {
     MailboxPostRequest
 } from "ts-mailcow-api/src/types";
 import * as https from "https";
-import {APIUserData} from "./types";
+import {APIUserData, Config} from "./types";
 import {Mailbox} from "ts-mailcow-api/dist/types";
 
 // Create MailCowClient based on BASE_URL and API_KEY
-const mcc: MailCowClient = new MailCowClient("https://webmail.gewis.nl/", "XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX", {httpsAgent: new https.Agent({keepAlive: true})});
+let mcc: MailCowClient = undefined;
 
 // Set password length
 const password_length: number = 32;
+
+/**
+ * Initialize database connection. Setup database if it does not yet exist
+ */
+export async function initializeAPI(config: Config): Promise<void> {
+    mcc = new MailCowClient(config['API_HOST'], config['API_KEY'], {httpsAgent: new https.Agent({keepAlive: true})});
+}
 
 /**
  * Generate random password
@@ -34,7 +41,6 @@ function generatePassword(length: number): string {
  * @param active - activity of the new user
  * @param quotum - mailbox size of the new user
  */
-// Todo return boolean?
 export async function addUserAPI(email: string, name: string, active: number, quotum: number): Promise<void> {
     // Generate password
     let password: string = generatePassword(password_length);
@@ -90,7 +96,6 @@ export async function addUserAPI(email: string, name: string, active: number, qu
  * @param options - options to be edited
  */
 // Todo add send from ACLs
-// Todo return boolean?
 export async function editUserAPI(email: string, options?: { active?: number, name?: string }): Promise<void> {
     let mailbox_data: MailboxEditRequest = {
         'items': [email],
@@ -103,7 +108,6 @@ export async function editUserAPI(email: string, options?: { active?: number, na
  * Delete user from Mailcow
  * @param email
  */
-// Todo return boolean?
 export async function deleteUserAPI(email: string): Promise<void> {
     let mailbox_data: MailboxDeleteRequest = {
         'mailboxes': [email],

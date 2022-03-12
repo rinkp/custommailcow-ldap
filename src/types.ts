@@ -9,6 +9,9 @@ export interface Config {
     SOGO_LDAP_FILTER: string,
     LDAP_GC_URI: string,
     LDAP_DOMAIN: string,
+    API_HOST: string,
+    API_KEY: string,
+    SYNC_INTERVAL: string
 }
 
 export interface DBUserData {

@@ -6,8 +6,8 @@
 
 # ENTRYPOINT [ "python3", "syncer.py" ]
 
-# We build our container using node:13-alpine
-FROM node:13-alpine AS builder
+# We build our container using node:16-alpine
+FROM node:16-alpine AS builder
 ENV NODE_ENV=development
 
 # Change dir to install dir.
@@ -26,11 +26,11 @@ COPY tsconfig.json .
 COPY src /usr/src/custommailcow-ldap/src
 
 # Transpile the typescript files
-RUN npm run build
+RUN npx tsc
 
 
 # Create production container.
-FROM node:13-alpine
+FROM node:16-alpine
 
 VOLUME [ "/db" ]
 VOLUME [ "/conf/dovecot" ]
@@ -41,6 +41,8 @@ WORKDIR /usr/src/custommailcow-ldap
 
 # Copy over the template data
 COPY templates /usr/src/custommailcow-ldap/templates
+COPY conf /usr/src/custommailcow-ldap/conf
+COPY db /usr/src/custommailcow-ldap/db
 
 # Copy over the package and package-lock
 COPY package*.json .

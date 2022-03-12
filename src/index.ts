@@ -10,7 +10,7 @@ import {replaceInFile, ReplaceInFileConfig} from 'replace-in-file'
 import fs, {PathLike} from 'fs'
 import path from "path";
 import {SearchResult} from "ldapts/Client";
-import {checkUserAPI, addUserAPI, editUserAPI} from "./api";
+import {checkUserAPI, addUserAPI, editUserAPI, initializeAPI} from "./api";
 
 import {ActiveUserSetting, APIUserData, Config, DBUserData, LDAPUserData} from "./types";
 
@@ -24,6 +24,9 @@ let config: Config = {
     SOGO_LDAP_FILTER: "objectClass='user' AND objectCategory='person'",
     LDAP_GC_URI: undefined,
     LDAP_DOMAIN: undefined,
+    API_HOST: undefined,
+    API_KEY: undefined,
+    SYNC_INTERVAL: undefined
 }
 
 async function initialization(): Promise<void> {
@@ -46,20 +49,21 @@ async function initialization(): Promise<void> {
 
     // Start 'connection' with database
     await initializeDatabase()
+    await initializeAPI(config)
     // Start sync loop every interval milliseconds
-    // while (true) {
-    await sync()
-    // let interval = parseInt(config['SYNC_INTERVAL'])
-    // console.log(`Sync finished, sleeping ${interval} seconds before next cycle`)
-    // await delay(interval)
-    // }
+    while (true) {
+        await sync()
+        let interval = parseInt(config['SYNC_INTERVAL'])
+        console.log(`Sync finished, sleeping ${interval} seconds before next cycle`)
+        await delay(interval * 1000)
+    }
 }
 
 initialization().then(() => console.log("Finished!"))
 
-// function delay(ms: number) {
-//     return new Promise(resolve => setTimeout(resolve, ms));
-// }
+function delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 /**
  * Synchronise LDAP users with Mailcow mailboxes and users stores in local DB
@@ -82,7 +86,6 @@ async function sync(): Promise<void> {
     setSessionTime()
 
     // Loop over all LDAP entries
-    // TODO how to type entry as LDAP result? -> Make LDAP interface?
     for (let entry of ldap_results['searchEntries'] as unknown as LDAPUserData[]) {
         try {
             // Check if LDAP user has email, if not, skip
@@ -229,7 +232,8 @@ function apply_config(config_file_path: PathLike, config_data: string): boolean 
     if (fs.existsSync(config_file_path)) {
         // Read and compare original data from config with new data
         let old_data: string = fs.readFileSync(config_file_path, 'utf8')
-        if (old_data === config_data) {
+
+        if (old_data.replace(/\s+/g, "*") === config_data.replace(/\s+/g, "*")) {
             console.log(`Config file ${config_file_path} unchanged`)
             return false
         }
