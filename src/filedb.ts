@@ -7,7 +7,7 @@ import {ActiveUserSetting, DBUserData} from "./types";
 // Connection options for the DB
 const options: ConnectionOptions = {
     type: "sqlite",
-    database: './db/ldap-mailcow.sqlite3',
+    database: '../db/ldap-mailcow.sqlite3',
     entities: [
         Users
     ],
@@ -24,8 +24,8 @@ export function setSessionTime(): void {
  * Initialize database connection. Setup database if it does not yet exist
  */
 export async function initializeDatabase(): Promise<void> {
-    if (!fs.existsSync('./db/ldap-mailcow.sqlite3'))
-        fs.writeFileSync('./db/ldap-mailcow.sqlite3', '')
+    if (!fs.existsSync('../db/ldap-mailcow.sqlite3'))
+        fs.writeFileSync('../db/ldap-mailcow.sqlite3', '')
     await createConnection(options).catch((error: any) => console.log(error));
     await getConnection().synchronize()
     userRepository = getConnection().getRepository(Users)
@@ -51,7 +51,7 @@ export async function getUncheckedActiveUsers(): Promise<Users[]> {
  */
 // Todo return boolean?
 export async function addUserFileDB(email: string, active: ActiveUserSetting): Promise<void> {
-    let user: Users = Object.assign(new Users(), {
+    const user: Users = Object.assign(new Users(), {
         email,
         active,
         last_seen: session_time,
@@ -64,13 +64,13 @@ export async function addUserFileDB(email: string, active: ActiveUserSetting): P
  * @param email - mail from to be retrieved user
  */
 export async function checkUserFileDB(email: string): Promise<DBUserData> {
-    let db_user_data: DBUserData = {
+    const db_user_data: DBUserData = {
         db_user_exists: false,
         db_user_active: undefined
     }
 
     // Find first user with email
-    let user: Users = await userRepository.findOne({
+    const user: Users = await userRepository.findOne({
         email: email
     })
 
@@ -97,7 +97,7 @@ export async function checkUserFileDB(email: string): Promise<DBUserData> {
 // Todo return boolean?
 export async function userSetActiveToFileDB(email: string, active: ActiveUserSetting): Promise<void> {
     // Retrieve user with email
-    let user: Users = await userRepository.findOne({
+    const user: Users = await userRepository.findOne({
         email: email
     })
     // Set new activity of user
