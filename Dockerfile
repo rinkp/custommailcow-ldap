@@ -26,7 +26,6 @@ FROM node:16-alpine AS prod
 
 # Set correct dir.
 WORKDIR /usr/src/custommailcow-ldap
-USER node
 
 # Copy over the package and package-lock
 COPY package*.json .
@@ -42,6 +41,7 @@ COPY --from=builder /usr/src/custommailcow-ldap/dist ./src
 
 # Set correct priv.
 RUN chown -R node:node .
+USER node
 
 VOLUME [ "/db" ]
 VOLUME [ "/conf/dovecot" ]
