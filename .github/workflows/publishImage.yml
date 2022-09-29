@@ -2,6 +2,9 @@ name: Publish Docker image
 on:
   release:
     types: [published]
+  push:
+    branches:
+      - main
 jobs:
   push_to_registry:
     name: Push Docker image to GitHub Packages
@@ -10,10 +13,7 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v2
       - name: Push to GitHub Packages
-        uses: docker/build-push-action@v1
+        uses: docker/build-push-action@v3
         with:
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          registry: docker.pkg.github.com
-          repository: GEWIS/custommailcow-ldap/main
-          tag_with_ref: true
+          push: true
+          tags: gewis/custommailcow-ldap:${{ github.ref_name }}
