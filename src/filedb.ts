@@ -7,7 +7,7 @@ import {ActiveUserSetting, DBUserData} from "./types";
 // Connection options for the DB
 const options: ConnectionOptions = {
     type: "sqlite",
-    database: '../db/ldap-mailcow.sqlite3',
+    database: './db/ldap-mailcow.sqlite3',
     entities: [
         Users
     ],
@@ -24,8 +24,8 @@ export function setSessionTime(): void {
  * Initialize database connection. Setup database if it does not yet exist
  */
 export async function initializeDatabase(): Promise<void> {
-    if (!fs.existsSync('../db/ldap-mailcow.sqlite3'))
-        fs.writeFileSync('../db/ldap-mailcow.sqlite3', '')
+    if (!fs.existsSync('./db/ldap-mailcow.sqlite3'))
+        fs.writeFileSync('./db/ldap-mailcow.sqlite3', '')
     await createConnection(options).catch((error: any) => console.log(error));
     await getConnection().synchronize()
     userRepository = getConnection().getRepository(Users)
