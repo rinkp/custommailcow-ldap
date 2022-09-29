@@ -98,7 +98,7 @@ async function sync(): Promise<void> {
             const email: string = (entry as any)['mail']
             const ldap_name: string = (entry as any)['displayName']
             // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
-            const ldap_active: ActiveUserSetting = ((entry as any)['userAccountControl'][0] & 0b10) ? 2 : 1;
+            const ldap_active: ActiveUserSetting = ((entry as any)['userAccountControl'][0] & 0b10) == 2 ? 2 : 1;
 
             // Read data of LDAP user van local DB and mailcow
             const db_user_data: DBUserData = await checkUserFileDB(email)
