@@ -37,12 +37,12 @@ async function initialization(): Promise<void> {
     const passdb_conf: string = await read_dovecot_passdb_conf_template();
     const plist_ldap: string = await read_sogo_plist_ldap_template();
     // Read data in extra config file
-    const extra_conf: string = fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
+    const extra_conf: string = fs.readFileSync('../templates/dovecot/extra.conf', 'utf8');
 
     // Apply all config files, see if any changed
-    const passdb_conf_changed: boolean = apply_config('./conf/dovecot/ldap/passdb.conf', passdb_conf)
-    const extra_conf_changed: boolean = apply_config('./conf/dovecot/extra.conf', extra_conf)
-    const plist_ldap_changed: boolean = apply_config('./conf/sogo/plist_ldap', plist_ldap)
+    const passdb_conf_changed: boolean = apply_config('../conf/dovecot/ldap/passdb.conf', passdb_conf)
+    const extra_conf_changed: boolean = apply_config('../conf/dovecot/extra.conf', extra_conf)
+    const plist_ldap_changed: boolean = apply_config('../conf/sogo/plist_ldap', plist_ldap)
 
     if (passdb_conf_changed || extra_conf_changed || plist_ldap_changed)
         console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
@@ -270,7 +270,7 @@ function apply_config(config_file_path: PathLike, config_data: string): boolean 
  */
 async function read_dovecot_passdb_conf_template(): Promise<string> {
     const options: ReplaceInFileConfig = {
-        files: './templates/dovecot/ldap/passdb.conf',
+        files: '../templates/dovecot/ldap/passdb.conf',
         from: ['$ldap_gc_uri', '$ldap_domain', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password'],
         to: [
             config['LDAP_GC_URI'],
@@ -282,7 +282,7 @@ async function read_dovecot_passdb_conf_template(): Promise<string> {
     };
     console.log("Adjust passdb_conf template file")
     await replaceInFile(options)
-    return fs.readFileSync('./templates/dovecot/ldap/passdb.conf', 'utf8')
+    return fs.readFileSync('../templates/dovecot/ldap/passdb.conf', 'utf8')
 }
 
 /**
@@ -290,7 +290,7 @@ async function read_dovecot_passdb_conf_template(): Promise<string> {
  */
 async function read_sogo_plist_ldap_template(): Promise<string> {
     const options: ReplaceInFileConfig = {
-        files: './templates/sogo/plist_ldap',
+        files: '../templates/sogo/plist_ldap',
         from: ['$ldap_uri', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password', '$sogo_ldap_filter'],
         to: [
             config['LDAP_URI'],
@@ -302,5 +302,5 @@ async function read_sogo_plist_ldap_template(): Promise<string> {
     };
     console.log("Adjust plist_ldap template file")
     await replaceInFile(options)
-    return fs.readFileSync('./templates/sogo/plist_ldap', 'utf8')
+    return fs.readFileSync('../templates/sogo/plist_ldap', 'utf8')
 }
