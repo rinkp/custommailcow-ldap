@@ -15,5 +15,5 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
-          repository: rinkp/custommailcow-ldap/main
+          repository: GEWIS/custommailcow-ldap/main
           tag_with_ref: true
