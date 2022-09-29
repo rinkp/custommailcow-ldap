@@ -15,7 +15,7 @@ import {checkUserAPI, addUserAPI, editUserAPI, initializeAPI} from "./api";
 import {ActiveUserSetting, APIUserData, Config, DBUserData, LDAPUserData} from "./types";
 
 // Set all default variables
-let config: Config = {
+const config: Config = {
     LDAP_URI: undefined,
     LDAP_BIND_DN: undefined,
     LDAP_BIND_DN_PASSWORD: undefined,
@@ -34,15 +34,15 @@ async function initialization(): Promise<void> {
     readConfig()
 
     // Adjust template files
-    let passdb_conf: string = await read_dovecot_passdb_conf_template();
-    let plist_ldap: string = await read_sogo_plist_ldap_template();
+    const passdb_conf: string = await read_dovecot_passdb_conf_template();
+    const plist_ldap: string = await read_sogo_plist_ldap_template();
     // Read data in extra config file
-    let extra_conf: string = fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
+    const extra_conf: string = fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
 
     // Apply all config files, see if any changed
-    let passdb_conf_changed: boolean = apply_config('./conf/dovecot/ldap/passdb.conf', passdb_conf)
-    let extra_conf_changed: boolean = apply_config('./conf/dovecot/extra.conf', extra_conf)
-    let plist_ldap_changed: boolean = apply_config('./conf/sogo/plist_ldap', plist_ldap)
+    const passdb_conf_changed: boolean = apply_config('./conf/dovecot/ldap/passdb.conf', passdb_conf)
+    const extra_conf_changed: boolean = apply_config('./conf/dovecot/extra.conf', extra_conf)
+    const plist_ldap_changed: boolean = apply_config('./conf/sogo/plist_ldap', plist_ldap)
 
     if (passdb_conf_changed || extra_conf_changed || plist_ldap_changed)
         console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
@@ -53,7 +53,7 @@ async function initialization(): Promise<void> {
     // Start sync loop every interval milliseconds
     while (true) {
         await sync()
-        let interval = parseInt(config['SYNC_INTERVAL'])
+        const interval = parseInt(config['SYNC_INTERVAL'])
         console.log(`Sync finished, sleeping ${interval} seconds before next cycle`)
         await delay(interval * 1000)
     }
@@ -70,13 +70,13 @@ function delay(ms: number) {
  */
 async function sync(): Promise<void> {
     // Connect to LDAP server using config
-    let ldap_connector: Client = new Client({
+    const ldap_connector: Client = new Client({
         url: config['LDAP_URI'],
     })
     await ldap_connector.bind(config['LDAP_BIND_DN'], config['LDAP_BIND_DN_PASSWORD'])
 
     // Search for al users, use filter and only display few attributes
-    let ldap_results: SearchResult = await ldap_connector.search(config['LDAP_BASE_DN'], {
+    const ldap_results: SearchResult = await ldap_connector.search(config['LDAP_BASE_DN'], {
         scope: 'sub',
         filter: config['LDAP_FILTER'],
         attributes: ['mail', 'displayName', 'userAccountControl']
@@ -86,7 +86,7 @@ async function sync(): Promise<void> {
     setSessionTime()
 
     // Loop over all LDAP entries
-    for (let entry of ldap_results['searchEntries'] as unknown as LDAPUserData[]) {
+    for (const entry of ldap_results['searchEntries'] as unknown as LDAPUserData[]) {
         try {
             // Check if LDAP user has email, if not, skip
             if (!entry['mail'] || entry['mail'].length === 0) {
@@ -95,16 +95,16 @@ async function sync(): Promise<void> {
 
             console.log("--------------------------------------")
             // Read data from LDAP
-            let email: string = (entry as any)['mail']
-            let ldap_name: string = (entry as any)['displayName']
+            const email: string = (entry as any)['mail']
+            const ldap_name: string = (entry as any)['displayName']
             // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
-            let ldap_active: ActiveUserSetting = ((entry as any)['userAccountControl'][0] & 0b10) ? 2 : 1;
+            const ldap_active: ActiveUserSetting = ((entry as any)['userAccountControl'][0] & 0b10) ? 2 : 1;
 
             // Read data of LDAP user van local DB and mailcow
-            let db_user_data: DBUserData = await checkUserFileDB(email)
-            let api_user_data: APIUserData = await checkUserAPI(email)
+            const db_user_data: DBUserData = await checkUserFileDB(email)
+            const api_user_data: APIUserData = await checkUserAPI(email)
 
-            let unchanged: boolean = true
+            let unchanged = true
 
             // Check if user exists in DB, if not, add user to DB
             if (!db_user_data['db_user_exists']) {
@@ -155,10 +155,10 @@ async function sync(): Promise<void> {
     }
 
     // Check all users in DB that have not yet been checked and are active
-    for (let user of await getUncheckedActiveUsers()) {
+    for (const user of await getUncheckedActiveUsers()) {
         try {
             // Get user data from Mailcow
-            let api_user_data: APIUserData = await checkUserAPI(user.email)
+            const api_user_data: APIUserData = await checkUserAPI(user.email)
 
             // Check if user is still active, if so, deactivate user
             if (api_user_data["api_user_active"]) {
@@ -181,7 +181,7 @@ async function sync(): Promise<void> {
  */
 function readConfig(): void {
     // All required config keys
-    let required_config_keys: string[] = [
+    const required_config_keys: string[] = [
         'LDAP-MAILCOW_LDAP_URI',
         'LDAP-MAILCOW_LDAP_GC_URI',
         'LDAP-MAILCOW_LDAP_DOMAIN',
@@ -194,7 +194,7 @@ function readConfig(): void {
     ]
 
     // Check if all keys are set in the environment
-    for (let config_key of required_config_keys) {
+    for (const config_key of required_config_keys) {
         if (!(config_key in process.env)) throw new Error(`Required environment value ${config_key} is not set`)
         console.log(`Required environment value ${config_key} has been set`)
 
@@ -231,7 +231,7 @@ function apply_config(config_file_path: PathLike, config_data: string): boolean 
     // Check if path to config file exists
     if (fs.existsSync(config_file_path)) {
         // Read and compare original data from config with new data
-        let old_data: string = fs.readFileSync(config_file_path, 'utf8')
+        const old_data: string = fs.readFileSync(config_file_path, 'utf8')
 
         if (old_data.replace(/\s+/g, "*") === config_data.replace(/\s+/g, "*")) {
             console.log(`Config file ${config_file_path} unchanged`)
@@ -239,8 +239,8 @@ function apply_config(config_file_path: PathLike, config_data: string): boolean 
         }
 
         // Backup the data
-        let backup_index: number = 1
-        let backup_file: string = `${config_file_path}.ldap_mailcow_bak.000`
+        let backup_index = 1
+        let backup_file = `${config_file_path}.ldap_mailcow_bak.000`
         // Find free filename for backup name
         while (fs.existsSync(backup_file)) {
             let zero_filled: string = '000' + backup_index;

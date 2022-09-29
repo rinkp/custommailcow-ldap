@@ -13,7 +13,7 @@ import {Mailbox} from "ts-mailcow-api/dist/types";
 let mcc: MailCowClient = undefined;
 
 // Set password length
-const password_length: number = 32;
+const password_length = 32;
 
 /**
  * Initialize database connection. Setup database if it does not yet exist
@@ -27,9 +27,9 @@ export async function initializeAPI(config: Config): Promise<void> {
  * @param length - length of random password
  */
 function generatePassword(length: number): string {
-    let result: string = '';
-    let characters: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let charactersLength: number = characters.length;
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength: number = characters.length;
     for (let i = 0; i < length; i++) result += characters.charAt(Math.floor(Math.random() * charactersLength));
     return result;
 }
@@ -43,10 +43,10 @@ function generatePassword(length: number): string {
  */
 export async function addUserAPI(email: string, name: string, active: number, quotum: number): Promise<void> {
     // Generate password
-    let password: string = generatePassword(password_length);
+    const password: string = generatePassword(password_length);
 
     // Set details of the net mailbox
-    let mailbox_data: MailboxPostRequest = {
+    const mailbox_data: MailboxPostRequest = {
         // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
         'active': active,
         'force_pw_update': false,
@@ -64,7 +64,7 @@ export async function addUserAPI(email: string, name: string, active: number, qu
     await mcc.mailbox.create(mailbox_data);
 
     // Set ACL data of new mailbox
-    let acl_data: ACLEditRequest = {
+    const acl_data: ACLEditRequest = {
         'items': email,
         'attr': {
             'user_acl': [
@@ -97,7 +97,7 @@ export async function addUserAPI(email: string, name: string, active: number, qu
  */
 // Todo add send from ACLs
 export async function editUserAPI(email: string, options?: { active?: number, name?: string }): Promise<void> {
-    let mailbox_data: MailboxEditRequest = {
+    const mailbox_data: MailboxEditRequest = {
         'items': [email],
         'attr': options
     };
@@ -109,7 +109,7 @@ export async function editUserAPI(email: string, options?: { active?: number, na
  * @param email
  */
 export async function deleteUserAPI(email: string): Promise<void> {
-    let mailbox_data: MailboxDeleteRequest = {
+    const mailbox_data: MailboxDeleteRequest = {
         'mailboxes': [email],
     };
     await mcc.mailbox.delete(mailbox_data);
@@ -120,13 +120,13 @@ export async function deleteUserAPI(email: string): Promise<void> {
  * @param email - email of user
  */
 export async function checkUserAPI(email: string): Promise<APIUserData> {
-    let api_user_data: APIUserData = {
+    const api_user_data: APIUserData = {
         api_user_exists: false,
         api_user_active: 0,
     };
 
     // Get mailbox data from user with email
-    let mailbox_data: Mailbox = (await mcc.mailbox.get(email)
+    const mailbox_data: Mailbox = (await mcc.mailbox.get(email)
         .catch(e => {
             throw new Error(e)
         }))[0]
