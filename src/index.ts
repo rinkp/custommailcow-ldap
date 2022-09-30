@@ -45,11 +45,13 @@ async function initialization(): Promise<void> {
     const plist_ldap_changed: boolean = apply_config('./conf/sogo/plist_ldap', plist_ldap)
 
     if (passdb_conf_changed || extra_conf_changed || plist_ldap_changed)
+        // eslint-disable-next-line max-len
         console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
 
     // Start 'connection' with database
     await initializeDatabase()
     await initializeAPI(config)
+
     // Start sync loop every interval milliseconds
     while (true) {
         await sync()
@@ -92,13 +94,12 @@ async function sync(): Promise<void> {
             if (!entry['mail'] || entry['mail'].length === 0) {
                 continue;
             }
-
-            console.log("--------------------------------------")
             // Read data from LDAP
-            const email: string = (entry as any)['mail']
-            const ldap_name: string = (entry as any)['displayName']
+            const email: string = entry['mail']
+            const ldap_name: string = entry['displayName']
             // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
-            const ldap_active: ActiveUserSetting = ((entry as any)['userAccountControl'][0] & 0b10) == 2 ? 2 : 1;
+            const ldap_active: ActiveUserSetting = (entry['userAccountControl'] & 0b10) == 2 ? 2 : 1;
+            console.log("--------------------------------------")
 
             // Read data of LDAP user van local DB and mailcow
             const db_user_data: DBUserData = await checkUserFileDB(email)

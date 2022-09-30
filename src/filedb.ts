@@ -26,7 +26,7 @@ export function setSessionTime(): void {
 export async function initializeDatabase(): Promise<void> {
     if (!fs.existsSync('./db/ldap-mailcow.sqlite3'))
         fs.writeFileSync('./db/ldap-mailcow.sqlite3', '')
-    await createConnection(options).catch((error: any) => console.log(error));
+    await createConnection(options).catch((error: never) => console.log(error));
     await getConnection().synchronize()
     userRepository = getConnection().getRepository(Users)
 }

@@ -134,7 +134,6 @@ export async function checkUserAPI(email: string): Promise<APIUserData> {
     // If no data, return immediately, otherwise return response data
     if (mailbox_data) {
         api_user_data['api_user_exists'] = true
-        // TODO -> dit kan misschien nog steeds fout zijn omdat active_int een int representation is van boolean
         api_user_data['api_user_active'] = mailbox_data['active_int']
         api_user_data['api_name'] = mailbox_data['name']
     }
