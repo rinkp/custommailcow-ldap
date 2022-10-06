@@ -125,12 +125,12 @@ async function syncUsers(): Promise<void> {
             }
 
             // Check if user exists in Mailcow, if not, add user to Mailcow
-            if (!userDataAPI["api_user_exists"]) {
+            if (!userDataAPI["exists"]) {
                 console.log(`Added Mailcow user: ${email} (Active: ${isActive})`)
                 await addUserAPI(email, displayName, isActive, 256)
-                userDataAPI['api_user_exists'] = true
-                userDataAPI['api_user_active'] = isActive
-                userDataAPI['api_name'] = displayName
+                userDataAPI['exists'] = true
+                userDataAPI['isActive'] = isActive
+                userDataAPI['displayName'] = displayName
                 unchanged = false
             }
 
@@ -142,14 +142,14 @@ async function syncUsers(): Promise<void> {
             }
 
             // Check if user is active in Mailcow, if not, adjust accordingly
-            if (userDataAPI["api_user_active"] !== isActive) {
+            if (userDataAPI["isActive"] !== isActive) {
                 console.log(`Set ${email} to active ${isActive} in Mailcow`)
                 await editUserAPI(email, {active: isActive})
                 unchanged = false
             }
 
             // Check if user's name in Mailcow matches LDAP name, adjust accordingly
-            if (userDataAPI["api_name"] !== displayName) {
+            if (userDataAPI["displayName"] !== displayName) {
                 console.log(`Changed name of ${email} to ${displayName} in Mailcow`)
                 await editUserAPI(email, {name: displayName})
                 unchanged = false;
