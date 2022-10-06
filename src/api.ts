@@ -6,19 +6,19 @@ import {
     MailboxPostRequest
 } from "ts-mailcow-api/src/types";
 import * as https from "https";
-import {APIUserData, Config} from "./types";
+import {UserDataAPI, ContainerConfig} from "./types";
 import {Mailbox} from "ts-mailcow-api/dist/types";
 
 // Create MailCowClient based on BASE_URL and API_KEY
 let mcc: MailCowClient = undefined;
 
 // Set password length
-const password_length = 32;
+const passwordLength = 32;
 
 /**
  * Initialize database connection. Setup database if it does not yet exist
  */
-export async function initializeAPI(config: Config): Promise<void> {
+export async function initializeAPI(config: ContainerConfig): Promise<void> {
     mcc = new MailCowClient(config['API_HOST'], config['API_KEY'], {httpsAgent: new https.Agent({keepAlive: true})});
 }
 
@@ -43,10 +43,10 @@ function generatePassword(length: number): string {
  */
 export async function addUserAPI(email: string, name: string, active: number, quotum: number): Promise<void> {
     // Generate password
-    const password: string = generatePassword(password_length);
+    const password: string = generatePassword(passwordLength);
 
     // Set details of the net mailbox
-    const mailbox_data: MailboxPostRequest = {
+    const mailboxData: MailboxPostRequest = {
         // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
         'active': active,
         'force_pw_update': false,
@@ -61,10 +61,10 @@ export async function addUserAPI(email: string, name: string, active: number, qu
     };
 
     // Create mailbox
-    await mcc.mailbox.create(mailbox_data);
+    await mcc.mailbox.create(mailboxData);
 
     // Set ACL data of new mailbox
-    const acl_data: ACLEditRequest = {
+    const aclData: ACLEditRequest = {
         'items': email,
         'attr': {
             'user_acl': [
@@ -87,7 +87,7 @@ export async function addUserAPI(email: string, name: string, active: number, qu
     };
 
     // Adjust ACL data of new mailbox
-    await mcc.mailbox.editUserACL(acl_data);
+    await mcc.mailbox.editUserACL(aclData);
 }
 
 /**
@@ -96,12 +96,12 @@ export async function addUserAPI(email: string, name: string, active: number, qu
  * @param options - options to be edited
  */
 // Todo add send from ACLs
-export async function editUserAPI(email: string, options?: { active?: number, name?: string }): Promise<void> {
-    const mailbox_data: MailboxEditRequest = {
+export async function editUserAPI(email: string, options?: { active?: number, name?: string, sender_acl?: string[] }): Promise<void> {
+    const mailboxData: MailboxEditRequest = {
         'items': [email],
         'attr': options
     };
-    await mcc.mailbox.edit(mailbox_data);
+    await mcc.mailbox.edit(mailboxData);
 }
 
 /**
@@ -109,34 +109,34 @@ export async function editUserAPI(email: string, options?: { active?: number, na
  * @param email
  */
 export async function deleteUserAPI(email: string): Promise<void> {
-    const mailbox_data: MailboxDeleteRequest = {
+    const mailboxData: MailboxDeleteRequest = {
         'mailboxes': [email],
     };
-    await mcc.mailbox.delete(mailbox_data);
+    await mcc.mailbox.delete(mailboxData);
 }
 
 /**
  * Check if user exists in Mailcow
  * @param email - email of user
  */
-export async function checkUserAPI(email: string): Promise<APIUserData> {
-    const api_user_data: APIUserData = {
-        api_user_exists: false,
-        api_user_active: 0,
+export async function checkUserAPI(email: string): Promise<UserDataAPI> {
+    const userData: UserDataAPI = {
+        exists: false,
+        isActive: 0,
     };
 
     // Get mailbox data from user with email
-    const mailbox_data: Mailbox = (await mcc.mailbox.get(email)
+    const mailboxData: Mailbox = (await mcc.mailbox.get(email)
         .catch(e => {
             throw new Error(e)
         }))[0]
 
     // If no data, return immediately, otherwise return response data
-    if (mailbox_data) {
-        api_user_data['api_user_exists'] = true
-        api_user_data['api_user_active'] = mailbox_data['active_int']
-        api_user_data['api_name'] = mailbox_data['name']
+    if (mailboxData) {
+        userData['exists'] = true
+        userData['isActive'] = mailboxData['active_int']
+        userData['displayName'] = mailboxData['name']
     }
 
-    return api_user_data
+    return userData
 }

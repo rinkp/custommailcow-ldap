@@ -1,10 +1,10 @@
-﻿import {Client} from 'ldapts';
+﻿import {Client, DN} from 'ldapts';
 import {
-    initializeDatabase,
+    initializeDB,
     setSessionTime,
-    checkUserFileDB,
-    addUserFileDB,
-    userSetActiveToFileDB, getUncheckedActiveUsers
+    checkUserDB,
+    addUserDB,
+    activityUserDB, getUncheckedActiveUsers, updatePermissionsDB, resetUserChanged, updateSOBDB,
 } from "./filedb";
 import {replaceInFile, ReplaceInFileConfig} from 'replace-in-file'
 import fs, {PathLike} from 'fs'
@@ -12,10 +12,10 @@ import path from "path";
 import {SearchResult} from "ldapts/Client";
 import {checkUserAPI, addUserAPI, editUserAPI, initializeAPI} from "./api";
 
-import {ActiveUserSetting, APIUserData, Config, DBUserData, LDAPUserData} from "./types";
+import {MailcowPermissions, ACLResults, ActiveUserSetting, UserDataAPI, ContainerConfig, UserDataDB, LDAPResults} from "./types";
 
 // Set all default variables
-const config: Config = {
+const config: ContainerConfig = {
     LDAP_URI: undefined,
     LDAP_BIND_DN: undefined,
     LDAP_BIND_DN_PASSWORD: undefined,
@@ -29,39 +29,50 @@ const config: Config = {
     SYNC_INTERVAL: undefined
 }
 
-async function initialization(): Promise<void> {
+let LDAPConnector: Client;
+
+async function initializeSync(): Promise<void> {
     // Read LDAP configuration
     readConfig()
 
+    // Connect to LDAP server using config
+    LDAPConnector = new Client({
+        url: config['LDAP_URI'],
+    })
+    await LDAPConnector.bind(config['LDAP_BIND_DN'], config['LDAP_BIND_DN_PASSWORD'])
+
     // Adjust template files
-    const passdb_conf: string = await read_dovecot_passdb_conf_template();
-    const plist_ldap: string = await read_sogo_plist_ldap_template();
+    const passDBConfig: string = await readPassDBConfig();
+    const pListLDAP: string = await readPListLDAP();
     // Read data in extra config file
-    const extra_conf: string = fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
+    const extraConfig: string = fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
 
     // Apply all config files, see if any changed
-    const passdb_conf_changed: boolean = apply_config('./conf/dovecot/ldap/passdb.conf', passdb_conf)
-    const extra_conf_changed: boolean = apply_config('./conf/dovecot/extra.conf', extra_conf)
-    const plist_ldap_changed: boolean = apply_config('./conf/sogo/plist_ldap', plist_ldap)
+    const passDBConfigChanged: boolean = applyConfig('./conf/dovecot/ldap/passdb.conf', passDBConfig)
+    const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig)
+    const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
 
-    if (passdb_conf_changed || extra_conf_changed || plist_ldap_changed)
-        // eslint-disable-next-line max-len
-        console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
+    if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
+    // eslint-disable-next-line max-len
+    console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
 
     // Start 'connection' with database
-    await initializeDatabase()
+    await initializeDB()
     await initializeAPI(config)
 
     // Start sync loop every interval milliseconds
     while (true) {
-        await sync()
+        console.log("Resetting user changes")
+        await resetUserChanged()
+        console.log("Syncing users")
+        await syncUsers()
         const interval = parseInt(config['SYNC_INTERVAL'])
         console.log(`Sync finished, sleeping ${interval} seconds before next cycle`)
         await delay(interval * 1000)
     }
 }
 
-initialization().then(() => console.log("Finished!"))
+initializeSync().then(() => console.log("Finished!"))
 
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -70,80 +81,77 @@ function delay(ms: number) {
 /**
  * Synchronise LDAP users with Mailcow mailboxes and users stores in local DB
  */
-async function sync(): Promise<void> {
-    // Connect to LDAP server using config
-    const ldap_connector: Client = new Client({
-        url: config['LDAP_URI'],
-    })
-    await ldap_connector.bind(config['LDAP_BIND_DN'], config['LDAP_BIND_DN_PASSWORD'])
+async function syncUsers(): Promise<void> {
 
     // Search for al users, use filter and only display few attributes
-    const ldap_results: SearchResult = await ldap_connector.search(config['LDAP_BASE_DN'], {
+    const LDAPResults: SearchResult = await LDAPConnector.search(config['LDAP_BASE_DN'], {
         scope: 'sub',
         filter: config['LDAP_FILTER'],
-        attributes: ['mail', 'displayName', 'userAccountControl']
+        attributes: ['mail', 'displayName', 'userAccountControl', 'mailPermRO', 'mailPermRW',
+            'mailPermROInbox', 'mailPermROSent', 'mailPermSOB']
     })
 
     // Update session time
     setSessionTime()
 
     // Loop over all LDAP entries
-    for (const entry of ldap_results['searchEntries'] as unknown as LDAPUserData[]) {
+    for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
+            console.log("--------------------------------------")
             // Check if LDAP user has email, if not, skip
             if (!entry['mail'] || entry['mail'].length === 0) {
                 continue;
             }
+
             // Read data from LDAP
             const email: string = entry['mail']
-            const ldap_name: string = entry['displayName']
+            const displayName: string = entry['displayName']
             // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
-            const ldap_active: ActiveUserSetting = (entry['userAccountControl'] & 0b10) == 2 ? 2 : 1;
-            console.log("--------------------------------------")
+            const isActive: ActiveUserSetting = (entry['userAccountControl'] & 0b10) == 2 ? 2 : 1;
 
             // Read data of LDAP user van local DB and mailcow
-            const db_user_data: DBUserData = await checkUserFileDB(email)
-            const api_user_data: APIUserData = await checkUserAPI(email)
+            const userDataDB: UserDataDB = await checkUserDB(email)
+            const userDataAPI: UserDataAPI = await checkUserAPI(email)
 
             let unchanged = true
 
             // Check if user exists in DB, if not, add user to DB
-            if (!db_user_data['db_user_exists']) {
-                console.log(`Added filedb user: ${email} (Active: ${ldap_active})`)
-                await addUserFileDB(email, ldap_active)
-                db_user_data['db_user_exists'] = true;
-                db_user_data['db_user_active'] = ldap_active;
+            if (!userDataDB['exists']) {
+                console.log(`Added filedb user: ${email} (Active: ${isActive})`)
+                await addUserDB(email, isActive)
+                userDataDB['exists'] = true;
+                userDataDB['isActive'] = isActive;
                 unchanged = false
             }
 
             // Check if user exists in Mailcow, if not, add user to Mailcow
-            if (!api_user_data["api_user_exists"]) {
-                console.log(`Added Mailcow user: ${email} (Active: ${ldap_active})`)
-                await addUserAPI(email, ldap_name, ldap_active, 256)
-                api_user_data['api_user_exists'] = true
-                api_user_data['api_user_active'] = ldap_active
-                api_user_data['api_name'] = ldap_name
+            if (!userDataAPI["api_user_exists"]) {
+                console.log(`Added Mailcow user: ${email} (Active: ${isActive})`)
+                await addUserAPI(email, displayName, isActive, 256)
+                userDataAPI['api_user_exists'] = true
+                userDataAPI['api_user_active'] = isActive
+                userDataAPI['api_name'] = displayName
                 unchanged = false
             }
 
             // Check if user is active in DB, if not, adjust accordingly
-            if (db_user_data["db_user_active"] !== ldap_active) {
-                console.log(`Set ${email} to active ${ldap_active} in filedb`)
-                await userSetActiveToFileDB(email, ldap_active)
+            if (userDataDB["isActive"] !== isActive) {
+                console.log(`Set ${email} to active ${isActive} in filedb`)
+                await activityUserDB(email, isActive)
                 unchanged = false
             }
 
             // Check if user is active in Mailcow, if not, adjust accordingly
-            if (api_user_data["api_user_active"] !== ldap_active) {
-                console.log(`Set ${email} to active ${ldap_active} in Mailcow`)
-                await editUserAPI(email, {active: ldap_active})
+            if (userDataAPI["api_user_active"] !== isActive) {
+                console.log(`Set ${email} to active ${isActive} in Mailcow`)
+                await editUserAPI(email, {active: isActive})
                 unchanged = false
             }
 
             // Check if user's name in Mailcow matches LDAP name, adjust accordingly
-            if (api_user_data["api_name"] !== ldap_name) {
-                console.log(`Changed name of ${email} to ${ldap_name} in Mailcow`)
-                await editUserAPI(email, {name: ldap_name})
+            if (userDataAPI["api_name"] !== displayName) {
+                console.log(`Changed name of ${email} to ${displayName} in Mailcow`)
+                await editUserAPI(email, {name: displayName})
                 unchanged = false;
             }
 
@@ -159,22 +167,73 @@ async function sync(): Promise<void> {
     for (const user of await getUncheckedActiveUsers()) {
         try {
             // Get user data from Mailcow
-            const api_user_data: APIUserData = await checkUserAPI(user.email)
+            const userDataAPI: UserDataAPI = await checkUserAPI(user.email)
 
             // Check if user is still active, if so, deactivate user
-            if (api_user_data["api_user_active"]) {
+            if (userDataAPI["isActive"]) {
                 console.log(`Deactivated user ${user.email} in Mailcow, not found in LDAP`)
                 await editUserAPI(user.email, {active: 0})
             }
 
             // Since user does not exist anymore, deactive user in filedb
             console.log(`Deactivated user ${user.email} in filedb, not found in LDAP`)
-            await userSetActiveToFileDB(user.email, 0)
+            await activityUserDB(user.email, 0)
         } catch (error) {
             console.log(`Exception throw during handling of ${user}: ${error}`)
         }
     }
 
+    // for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
+    //     try {
+    //         if (entry[MailcowPermissions.mailPermRO].length != 0)
+    //             await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
+    //         if (entry[MailcowPermissions.mailPermRW].length != 0)
+    //             await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
+    //         if (entry[MailcowPermissions.mailPermROInbox].length != 0)
+    //             await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
+    //         if (entry[MailcowPermissions.mailPermROSent].length != 0)
+    //             await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
+    //
+    //         if (entry[MailcowPermissions.mailPermSOB].length != 0) await syncUserSOB(entry);
+    //     } catch (error) {
+    //         console.log(entry)
+    //         console.log(`Exception throw during handling of ${entry}: ${error}`)
+    //     }
+    // }
+
+}
+
+async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions) {
+    const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
+        scope: 'sub',
+        attributes: ['memberFlattened']
+    });
+    updatePermissionsDB(entry['mail'],
+        (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
+        .then((results: ACLResults) => {
+            // console.log(results)
+            // TODO add Sogo socket
+        }
+    )
+}
+
+async function syncUserSOB(entry: LDAPResults) {
+    const SOBResults: SearchResult = await LDAPConnector.search(entry[MailcowPermissions.mailPermSOB], {
+        scope: 'sub',
+        attributes: ['memberFlattened']
+    });
+    // Construct list in database with DN of all committees they are in
+    // Get existing list of committees, add new DN as string
+    for (const members of SOBResults['searchEntries'] as unknown as LDAPResults[]) {
+        for (const member of members['memberFlattened']) {
+            const member_results: SearchResult = await LDAPConnector.search(member, {
+                scope: 'sub',
+                attributes: ['mail']
+            });
+            const member_mail = member_results['searchEntries'] as unknown as LDAPResults[];
+            await updateSOBDB(member_mail[0]['mail'], entry['mail']);
+        }
+    }
 }
 
 /**
@@ -200,7 +259,7 @@ function readConfig(): void {
         console.log(`Required environment value ${config_key} has been set`)
 
         // Add keys to local config variable
-        config[config_key.replace('LDAP-MAILCOW_', '') as keyof Config] = process.env[config_key]
+        config[config_key.replace('LDAP-MAILCOW_', '') as keyof ContainerConfig] = process.env[config_key]
     }
 
     // Check if Sogo filter is set
@@ -225,51 +284,51 @@ function readConfig(): void {
 
 /**
  * Compare, backup and save (new) config files
- * @param config_file_path - path to original config file
- * @param config_data - data of new config file
+ * @param configPath - path to original config file
+ * @param configData - data of new config file
  */
-function apply_config(config_file_path: PathLike, config_data: string): boolean {
+function applyConfig(configPath: PathLike, configData: string): boolean {
     // Check if path to config file exists
-    if (fs.existsSync(config_file_path)) {
+    if (fs.existsSync(configPath)) {
         // Read and compare original data from config with new data
-        const old_data: string = fs.readFileSync(config_file_path, 'utf8')
+        const oldConfig: string = fs.readFileSync(configPath, 'utf8')
 
-        if (old_data.replace(/\s+/g, "*") === config_data.replace(/\s+/g, "*")) {
-            console.log(`Config file ${config_file_path} unchanged`)
+        if (oldConfig.replace(/\s+/g, "*") === configData.replace(/\s+/g, "*")) {
+            console.log(`Config file ${configPath} unchanged`)
             return false
         }
 
         // Backup the data
-        let backup_index = 1
-        let backup_file = `${config_file_path}.ldap_mailcow_bak.000`
+        let backupIndex = 1
+        let backupFile = `${configPath}.ldap_mailcow_bak.000`
         // Find free filename for backup name
-        while (fs.existsSync(backup_file)) {
-            let zero_filled: string = '000' + backup_index;
-            zero_filled = zero_filled.substring(zero_filled.length - 3);
-            backup_file = `${config_file_path}.ldap_mailcow_bak.${zero_filled}`;
-            backup_index++;
+        while (fs.existsSync(backupFile)) {
+            let prependZeroes: string = '000' + backupIndex;
+            prependZeroes = prependZeroes.substring(prependZeroes.length - 3);
+            backupFile = `${configPath}.ldap_mailcow_bak.${prependZeroes}`;
+            backupIndex++;
         }
         // Rename original config file to backup name
-        fs.renameSync(config_file_path, backup_file)
-        console.log(`Backed up ${config_file_path} to ${backup_file}`)
+        fs.renameSync(configPath, backupFile)
+        console.log(`Backed up ${configPath} to ${backupFile}`)
 
         // Write new config file to config file location
-        if (typeof config_file_path === "string") {
-            fs.mkdirSync(path.dirname(config_file_path), {recursive: true})
+        if (typeof configPath === "string") {
+            fs.mkdirSync(path.dirname(configPath), {recursive: true})
         }
-        fs.writeFileSync(config_file_path, config_data)
+        fs.writeFileSync(configPath, configData)
     } else {
-        console.log(`A problem occured when backing up ${config_file_path}`)
+        console.log(`A problem occured when backing up ${configPath}`)
     }
 
-    console.log(`Saved generated config file to ${config_file_path}`)
+    console.log(`Saved generated config file to ${configPath}`)
     return true
 }
 
 /**
  * Replace all variables in template file with new configuration
  */
-async function read_dovecot_passdb_conf_template(): Promise<string> {
+async function readPassDBConfig(): Promise<string> {
     const options: ReplaceInFileConfig = {
         files: './templates/dovecot/ldap/passdb.conf',
         from: ['$ldap_gc_uri', '$ldap_domain', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password'],
@@ -289,7 +348,7 @@ async function read_dovecot_passdb_conf_template(): Promise<string> {
 /**
  * Replace all variables in template file with new configuration
  */
-async function read_sogo_plist_ldap_template(): Promise<string> {
+async function readPListLDAP(): Promise<string> {
     const options: ReplaceInFileConfig = {
         files: './templates/sogo/plist_ldap',
         from: ['$ldap_uri', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password', '$sogo_ldap_filter'],

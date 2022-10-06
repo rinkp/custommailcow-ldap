@@ -40,8 +40,7 @@ COPY templates /app/templates
 COPY --from=builder /usr/src/custommailcow-ldap/dist /app/src
 
 # Set correct priv.
-RUN chown -R node:node .
-USER node
+USER root
 
 VOLUME [ "/app/db" ]
 VOLUME [ "/app/conf/dovecot" ]

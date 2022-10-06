@@ -10,5 +10,23 @@ export class Users {
     active: ActiveUserSetting;
 
     @Column()
-    last_seen: Date;
+    mailPermRO: string
+
+    @Column()
+    mailPermRW: string
+
+    @Column()
+    mailPermROInbox: string
+
+    @Column()
+    mailPermROSent: string
+
+    @Column()
+    mailPermSOB: string
+
+    @Column()
+    changedSOB: boolean
+
+    @Column()
+    lastSeen: Date;
 }

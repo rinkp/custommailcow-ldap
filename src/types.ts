@@ -1,6 +1,4 @@
-import {Entry} from "ldapts";
-
-export interface Config {
+export interface ContainerConfig {
     LDAP_URI: string,
     LDAP_BIND_DN: string,
     LDAP_BIND_DN_PASSWORD: string,
@@ -14,21 +12,40 @@ export interface Config {
     SYNC_INTERVAL: string
 }
 
-export interface DBUserData {
-    db_user_exists: boolean
-    db_user_active: number
+export interface UserDataDB {
+    exists: boolean
+    isActive: number
 }
 
-export interface APIUserData {
-    api_user_exists: boolean,
-    api_user_active: number,
-    api_name?: string,
+export interface UserDataAPI {
+    exists: boolean,
+    isActive: number,
+    displayName?: string,
 }
 
-export interface LDAPUserData {
-    mail: string
-    displayName: string
-    userAccountControl: number
+export interface LDAPResults {
+    mail?: string
+    displayName?: string
+    userAccountControl?: number
+    mailPermRO?: string
+    mailPermRW?: string
+    mailPermROInbox?: string
+    mailPermROSent?: string
+    mailPermSOB?: string
+    memberFlattened?: string[]
+}
+
+export enum MailcowPermissions {
+    mailPermRO = "mailPermRO",
+    mailPermRW = "mailPermRW",
+    mailPermROInbox = "mailPermROInbox",
+    mailPermROSent = "mailPermROSent",
+    mailPermSOB = "mailPermSOB"
 }
 
 export type ActiveUserSetting = 0 | 1 | 2;
+
+export interface ACLResults {
+    newUsers?: string[];
+    removedUsers?: string[];
+}
