@@ -26,7 +26,8 @@ const config: ContainerConfig = {
     LDAP_DOMAIN: undefined,
     API_HOST: undefined,
     API_KEY: undefined,
-    SYNC_INTERVAL: undefined
+    SYNC_INTERVAL: undefined,
+    DOVEADM_API_KEY: undefined
 }
 
 let LDAPConnector: Client;
@@ -45,7 +46,7 @@ async function initializeSync(): Promise<void> {
     const passDBConfig: string = await readPassDBConfig();
     const pListLDAP: string = await readPListLDAP();
     // Read data in extra config file
-    const extraConfig: string = fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
+    const extraConfig: string = await readDovecotExtraConfig();
 
     // Apply all config files, see if any changed
     const passDBConfigChanged: boolean = applyConfig('./conf/dovecot/ldap/passdb.conf', passDBConfig)
@@ -213,6 +214,8 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
         .then((results: ACLResults) => {
             // console.log(results)
             // TODO add Sogo socket
+            // https://doc.dovecot.org/admin_manual/doveadm_http_api/
+            // http://172.22.1.250:9000 for Mailcow
         }
     )
 }
@@ -343,6 +346,21 @@ async function readPassDBConfig(): Promise<string> {
     console.log("Adjust passdb_conf template file")
     await replaceInFile(options)
     return fs.readFileSync('./templates/dovecot/ldap/passdb.conf', 'utf8')
+}
+
+/**
+ * Replace all variables in template file with new configuration
+ */
+async function readDovecotExtraConfig(): Promise<string> {
+    const options: ReplaceInFileConfig = {
+        files: './templates/dovecot/ldap/extra.conf',
+        from: ['$doveadm_api_key'],
+        to: [
+            config['DOVEADM_API_KEY']
+        ],
+    };
+    await replaceInFile(options)
+    return fs.readFileSync('./templates/dovecot/ldap/extra.conf', 'utf8')
 }
 
 /**
