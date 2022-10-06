@@ -9,7 +9,8 @@ export interface ContainerConfig {
     LDAP_DOMAIN: string,
     API_HOST: string,
     API_KEY: string,
-    SYNC_INTERVAL: string
+    SYNC_INTERVAL: string,
+    DOVEADM_API_KEY: string
 }
 
 export interface UserDataDB {
