@@ -132,7 +132,7 @@ export async function checkUserAPI(email: string): Promise<UserDataAPI> {
         }))[0]
 
     // If no data, return immediately, otherwise return response data
-    if (mailboxData) {
+    if (!(Object.keys(mailboxData).length === 0 && mailboxData.constructor === Object)) {
         userData['exists'] = true
         userData['isActive'] = mailboxData['active_int']
         userData['displayName'] = mailboxData['name']

@@ -28,5 +28,5 @@ export class Users {
     changedSOB: boolean
 
     @Column()
-    lastSeen: Date;
+    lastSeen: number;
 }

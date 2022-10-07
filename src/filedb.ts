@@ -14,10 +14,10 @@ const options: ConnectionOptions = {
 }
 
 let userRepository: Repository<Users>;
-let session_time: Date = new Date();
+let session_time: number = new Date().getTime();
 
 export function setSessionTime(): void {
-    session_time = new Date()
+    session_time = new Date().getTime()
 }
 
 /**
@@ -113,13 +113,6 @@ export async function activityUserDB(email: string, active: ActiveUserSetting): 
     await userRepository.update(user.email, user)
 }
 
-export async function resetUserChanged(): Promise<void> {
-    await userRepository.createQueryBuilder()
-        .update()
-        .set({changedSOB: false})
-        .execute();
-}
-
 /**
  * Update user's SOB
  * @param email - email of user
@@ -138,6 +131,7 @@ export async function updateSOBDB(email: string, SOBEmail: string): Promise<void
     if (SOB.indexOf(SOBEmail) === -1) {
         SOB.push(SOBEmail)
         user.changedSOB = true;
+        console.log(`New SOB added to ${email}. Now allowed to SOB ${SOBEmail}`)
         user[MailcowPermissions.mailPermSOB] = SOB.join(';');
         await userRepository.update(user.email, user)
     }
@@ -147,9 +141,22 @@ export async function getChangedSOB(): Promise<SOBList[]> {
     // Retrieve user with email
     return await userRepository.createQueryBuilder()
         .select(["email", "mailPermSOB"])
-        .where({changedSOB: 1})
+        .where({
+            changedSOB: true
+        })
         .execute()
 }
+
+export async function resetUserChanged(email: string): Promise<void> {
+    // Find first user with email
+    const user: Users = await userRepository.findOne({
+        email: email
+    })
+
+    user.changedSOB = false;
+    await userRepository.update(user.email, user)
+}
+
 
 /**
  * Update user's ACLs

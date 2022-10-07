@@ -68,8 +68,8 @@ async function initializeSync(): Promise<void> {
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
 
     if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
-        // eslint-disable-next-line max-len
-        console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
+    // eslint-disable-next-line max-len
+    console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
 
     // Start 'connection' with database
     await initializeDB()
@@ -78,8 +78,6 @@ async function initializeSync(): Promise<void> {
 
     // Start sync loop every interval milliseconds
     while (true) {
-        console.log("Resetting user changes")
-        await resetUserChanged()
         console.log("Syncing users")
         await syncUsers()
         const interval = parseInt(config['SYNC_INTERVAL'])
@@ -113,7 +111,6 @@ async function syncUsers(): Promise<void> {
     // Loop over all LDAP entries
     for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
-            console.log("--------------------------------------")
             // Check if LDAP user has email, if not, skip
             if (!entry['mail'] || entry['mail'].length === 0) {
                 continue;
@@ -160,7 +157,7 @@ async function syncUsers(): Promise<void> {
             // Check if user is active in Mailcow, if not, adjust accordingly
             if (userDataAPI["isActive"] !== isActive) {
                 console.log(`Set ${email} to active ${isActive} in Mailcow`)
-                await editUserAPI(email, {active: isActive})
+                // await editUserAPI(email, {active: isActive})
                 unchanged = false
             }
 
@@ -172,7 +169,9 @@ async function syncUsers(): Promise<void> {
             }
 
             if (unchanged) {
-                console.log(`Checked user ${email}, no changes needed`)
+                // console.log(`Checked user ${email}, no changes needed`)
+            } else {
+                console.log("--------------------------------------")
             }
         } catch (error) {
             console.log(`Exception throw during handling of ${entry}: ${error}`)
@@ -180,6 +179,7 @@ async function syncUsers(): Promise<void> {
     }
 
     // Check all users in DB that have not yet been checked and are active
+    console.log('Checking users that are no longer in AD')
     for (const user of await getUncheckedActiveUsers()) {
         try {
             // Get user data from Mailcow
@@ -200,8 +200,10 @@ async function syncUsers(): Promise<void> {
     }
 
     // Set all permissions for mailboxes
+    console.log("Settings SOB permissions")
     for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
+            console.log("--------------------------")
             // if (entry[MailcowPermissions.mailPermRO].length != 0)
             //     await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
             // if (entry[MailcowPermissions.mailPermRW].length != 0)
@@ -217,9 +219,16 @@ async function syncUsers(): Promise<void> {
     }
 
     // Make final changes for SOB
+    console.log("Changing SOB in mailcow")
     for (const entry of await getChangedSOB()) {
-        const SOBs = entry.mailPermSOB.split(';');
-        await editUserAPI(entry.email, {sender_acl: SOBs})
+        try {
+            console.log(`Changing SOB of ${entry.email}`)
+            const SOBs = entry.mailPermSOB.split(';');
+            await editUserAPI(entry.email, {sender_acl: SOBs})
+            await resetUserChanged(entry.email);
+        } catch (error) {
+            console.log(`Exception throw during handling of ${entry}: ${error}`)
+        }
     }
 
 }
@@ -232,10 +241,10 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
     updatePermissionsDB(entry['mail'],
         (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
         .then((results: ACLResults) => {
-                setMailPerm(entry['mail'], results.newUsers, type, false)
-                setMailPerm(entry['mail'], results.removedUsers, type, true)
-            }
-        )
+            setMailPerm(entry['mail'], results.newUsers, type, false)
+            setMailPerm(entry['mail'], results.removedUsers, type,true)
+        }
+    )
 }
 
 async function syncUserSOB(entry: LDAPResults) {
@@ -243,6 +252,7 @@ async function syncUserSOB(entry: LDAPResults) {
         scope: 'sub',
         attributes: ['memberFlattened']
     });
+
     // Construct list in database with DN of all committees they are in
     // Get existing list of committees, add new DN as string
     for (const members of SOBResults['searchEntries'] as unknown as LDAPResults[]) {
