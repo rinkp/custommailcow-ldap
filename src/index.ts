@@ -1,18 +1,31 @@
-﻿import {Client, DN} from 'ldapts';
+﻿import {Client} from 'ldapts';
 import {
-    initializeDB,
-    setSessionTime,
-    checkUserDB,
+    activityUserDB,
     addUserDB,
-    activityUserDB, getUncheckedActiveUsers, updatePermissionsDB, resetUserChanged, updateSOBDB,
+    checkUserDB, getChangedSOB,
+    getUncheckedActiveUsers,
+    initializeDB,
+    resetUserChanged,
+    setSessionTime,
+    updatePermissionsDB,
+    updateSOBDB,
 } from "./filedb";
 import {replaceInFile, ReplaceInFileConfig} from 'replace-in-file'
 import fs, {PathLike} from 'fs'
 import path from "path";
 import {SearchResult} from "ldapts/Client";
-import {checkUserAPI, addUserAPI, editUserAPI, initializeAPI} from "./api";
+import {addUserAPI, checkUserAPI, editUserAPI, initializeMailcowAPI} from "./mailcowAPI";
 
-import {MailcowPermissions, ACLResults, ActiveUserSetting, UserDataAPI, ContainerConfig, UserDataDB, LDAPResults} from "./types";
+import {
+    ACLResults,
+    ActiveUserSetting,
+    ContainerConfig,
+    LDAPResults,
+    MailcowPermissions,
+    UserDataAPI,
+    UserDataDB
+} from "./types";
+import {initializeDovecotAPI, setMailPerm} from "./dovecotAPI";
 
 // Set all default variables
 const config: ContainerConfig = {
@@ -27,7 +40,8 @@ const config: ContainerConfig = {
     API_HOST: undefined,
     API_KEY: undefined,
     SYNC_INTERVAL: undefined,
-    DOVEADM_API_KEY: undefined
+    DOVEADM_API_KEY: undefined,
+    DOVEADM_API_HOST: undefined
 }
 
 let LDAPConnector: Client;
@@ -54,12 +68,13 @@ async function initializeSync(): Promise<void> {
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
 
     if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
-    // eslint-disable-next-line max-len
-    console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
+        // eslint-disable-next-line max-len
+        console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
 
     // Start 'connection' with database
     await initializeDB()
-    await initializeAPI(config)
+    await initializeMailcowAPI(config)
+    await initializeDovecotAPI(config)
 
     // Start sync loop every interval milliseconds
     while (true) {
@@ -184,23 +199,28 @@ async function syncUsers(): Promise<void> {
         }
     }
 
-    // for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
-    //     try {
-    //         if (entry[MailcowPermissions.mailPermRO].length != 0)
-    //             await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
-    //         if (entry[MailcowPermissions.mailPermRW].length != 0)
-    //             await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
-    //         if (entry[MailcowPermissions.mailPermROInbox].length != 0)
-    //             await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
-    //         if (entry[MailcowPermissions.mailPermROSent].length != 0)
-    //             await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
-    //
-    //         if (entry[MailcowPermissions.mailPermSOB].length != 0) await syncUserSOB(entry);
-    //     } catch (error) {
-    //         console.log(entry)
-    //         console.log(`Exception throw during handling of ${entry}: ${error}`)
-    //     }
-    // }
+    // Set all permissions for mailboxes
+    for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
+        try {
+            // if (entry[MailcowPermissions.mailPermRO].length != 0)
+            //     await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
+            // if (entry[MailcowPermissions.mailPermRW].length != 0)
+            //     await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
+            // if (entry[MailcowPermissions.mailPermROInbox].length != 0)
+            //     await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
+            // if (entry[MailcowPermissions.mailPermROSent].length != 0)
+            //     await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
+            if (entry[MailcowPermissions.mailPermSOB].length != 0) await syncUserSOB(entry);
+        } catch (error) {
+            console.log(`Exception throw during handling of ${entry}: ${error}`)
+        }
+    }
+
+    // Make final changes for SOB
+    for (const entry of await getChangedSOB()) {
+        const SOBs = entry.mailPermSOB.split(';');
+        await editUserAPI(entry.email, {sender_acl: SOBs})
+    }
 
 }
 
@@ -212,12 +232,10 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
     updatePermissionsDB(entry['mail'],
         (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
         .then((results: ACLResults) => {
-            // console.log(results)
-            // TODO add Sogo socket
-            // https://doc.dovecot.org/admin_manual/doveadm_http_api/
-            // http://172.22.1.250:9000 for Mailcow
-        }
-    )
+                setMailPerm(entry['mail'], results.newUsers, type, false)
+                setMailPerm(entry['mail'], results.removedUsers, type, true)
+            }
+        )
 }
 
 async function syncUserSOB(entry: LDAPResults) {

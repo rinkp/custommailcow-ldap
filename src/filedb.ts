@@ -2,7 +2,7 @@
 import 'reflect-metadata'
 import {Users} from './entities/User'
 import fs from "fs";
-import {MailcowPermissions, ACLResults, ActiveUserSetting, UserDataDB} from "./types";
+import {MailcowPermissions, ACLResults, ActiveUserSetting, UserDataDB, SOBList} from "./types";
 
 // Connection options for the DB
 const options: ConnectionOptions = {
@@ -49,7 +49,6 @@ export async function getUncheckedActiveUsers(): Promise<Users[]> {
  * @param email - mail entry in the database
  * @param active - whether user is active
  */
-// Todo return boolean?
 export async function addUserDB(email: string, active: ActiveUserSetting): Promise<void> {
     const user: Users = Object.assign(new Users(), {
         email: email,
@@ -104,7 +103,6 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
  * @param email - email of user
  * @param active - activity of user
  */
-// Todo return boolean?
 export async function activityUserDB(email: string, active: ActiveUserSetting): Promise<void> {
     // Retrieve user with email
     const user: Users = await userRepository.findOne({
@@ -143,6 +141,14 @@ export async function updateSOBDB(email: string, SOBEmail: string): Promise<void
         user[MailcowPermissions.mailPermSOB] = SOB.join(';');
         await userRepository.update(user.email, user)
     }
+}
+
+export async function getChangedSOB(): Promise<SOBList[]> {
+    // Retrieve user with email
+    return await userRepository.createQueryBuilder()
+        .select(["email", "mailPermSOB"])
+        .where({changedSOB: 1})
+        .execute()
 }
 
 /**
