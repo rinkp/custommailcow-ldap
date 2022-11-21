@@ -16,7 +16,8 @@ export interface ContainerConfig {
 
 export interface UserDataDB {
     exists: boolean
-    isActive: number
+    isActive: ActiveUserSetting
+    inactiveCount: number
 }
 
 export interface UserDataAPI {

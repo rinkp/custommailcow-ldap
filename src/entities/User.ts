@@ -10,6 +10,9 @@ export class Users {
     active: ActiveUserSetting;
 
     @Column()
+    inactiveCount: number;
+
+    @Column()
     mailPermRO: string
 
     @Column()

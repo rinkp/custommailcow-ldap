@@ -39,7 +39,7 @@ export async function getUncheckedActiveUsers(): Promise<Users[]> {
         select: ["email"],
         where: {
             lastSeen: Not(session_time),
-            active: true
+            active: Not(0)
         }
     }))
 }
@@ -53,6 +53,7 @@ export async function addUserDB(email: string, active: ActiveUserSetting): Promi
     const user: Users = Object.assign(new Users(), {
         email: email,
         active: active,
+        inactiveCount: 0,
         mailPermRO: '',
         changedRO: 0,
         mailPermRW: '',
@@ -75,7 +76,8 @@ export async function addUserDB(email: string, active: ActiveUserSetting): Promi
 export async function checkUserDB(email: string): Promise<UserDataDB> {
     const db_user_data: UserDataDB = {
         exists: false,
-        isActive: undefined
+        isActive: undefined,
+        inactiveCount: 0
     }
 
     // Find first user with email
@@ -94,6 +96,7 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
         // Return information of user
         db_user_data['exists'] = true
         db_user_data['isActive'] = user.active
+        db_user_data['inactiveCount'] = user.inactiveCount
         return db_user_data
     }
 }
@@ -102,14 +105,16 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
  * Change user activity status in the DB
  * @param email - email of user
  * @param active - activity of user
+ * @param inactiveCount - number of times user has been inactive
  */
-export async function activityUserDB(email: string, active: ActiveUserSetting): Promise<void> {
+export async function activityUserDB(email: string, active: ActiveUserSetting, inactiveCount: number): Promise<void> {
     // Retrieve user with email
     const user: Users = await userRepository.findOne({
         email: email
     })
     // Set new activity of user
     user.active = active
+    user.inactiveCount = inactiveCount
     await userRepository.update(user.email, user)
 }
 
