@@ -95,13 +95,13 @@ export async function setMailPerm(email: string, users: string[], type: MailcowP
     //         }
     //         requests.push(request)
     //     }
-    }
+    // }
 
     // Post request
-    const response = await dovecotClient.post(
-        '', requests
-    );
-    console.log(response)
+    // const response = await dovecotClient.post(
+    //     '', requests
+    // );
+    // console.log(response)
 }
 
 
