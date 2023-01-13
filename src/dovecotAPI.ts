@@ -26,20 +26,21 @@ export async function initializeDovecotAPI(config: ContainerConfig): Promise<voi
  */
 async function getMailboxes(email: string): Promise<string[]> {
     // Get all mailboxes
-    const response = (await dovecotClient.post(
-        '',
-        [[
-            "mailboxList",
-            {
-                "user": email
-            },
-            `mailboxList_${email}`
-        ]]
-    )) as DoveadmExchanges
-    // Convert response to array of mailboxes
-    return response.doveadmExchange[0].doveadmRequestData.data.map((item) => {
-        return item.mailbox;
-    });
+    // const response = (await dovecotClient.post(
+    //     '',
+    //     [[
+    //         "mailboxList",
+    //         {
+    //             "user": email
+    //         },
+    //         `mailboxList_${email}`
+    //     ]]
+    // )) as DoveadmExchanges
+    // // Convert response to array of mailboxes
+    // return response.doveadmExchange[0].doveadmRequestData.data.map((item) => {
+    //     return item.mailbox;
+    // });
+    return ["test"];
 }
 
 /**
@@ -56,7 +57,7 @@ export async function setMailPerm(email: string, users: string[], type: MailcowP
     // } else if (type == MailcowPermissions.mailPermROSent) {
     //     mailboxes = ['Sent']
     // } else {
-    let mailboxes = getMailboxes(email);
+    const mailboxes = await getMailboxes(email);
     // }
 
     console.log(mailboxes)

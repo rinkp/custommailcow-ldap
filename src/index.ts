@@ -235,7 +235,7 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
         (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
         .then((results: ACLResults) => {
             setMailPerm(entry['mail'], results.newUsers, type, false)
-            setMailPerm(entry['mail'], results.removedUsers, type,true)
+            // setMailPerm(entry['mail'], results.removedUsers, type,true)
         }
     )
 }
