@@ -55,17 +55,24 @@ async function initializeSync(): Promise<void> {
         url: config['LDAP_URI'],
     })
     await LDAPConnector.bind(config['LDAP_BIND_DN'], config['LDAP_BIND_DN_PASSWORD'])
+    console.log("checkpoint #1")
 
     // Adjust template files
     const passDBConfig: string = await readPassDBConfig();
+    console.log("checkpoint #2")
     const pListLDAP: string = await readPListLDAP();
+    console.log("checkpoint #3")
     // Read data in extra config file
     const extraConfig: string = await readDovecotExtraConfig();
+    console.log("checkpoint #4")
 
     // Apply all config files, see if any changed
     const passDBConfigChanged: boolean = applyConfig('./conf/dovecot/ldap/passdb.conf', passDBConfig)
+    console.log("checkpoint #5")
     const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig)
+    console.log("checkpoint #6")
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
+    console.log("checkpoint #7")
 
     if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
     // eslint-disable-next-line max-len
@@ -278,7 +285,8 @@ function readConfig(): void {
         'LDAP-MAILCOW_LDAP_BIND_DN_PASSWORD',
         'LDAP-MAILCOW_API_HOST',
         'LDAP-MAILCOW_API_KEY',
-        'LDAP-MAILCOW_SYNC_INTERVAL'
+        'LDAP-MAILCOW_SYNC_INTERVAL',
+        'DOVEADM_API_KEY'
     ]
 
     // Check if all keys are set in the environment
