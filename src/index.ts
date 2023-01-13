@@ -168,8 +168,9 @@ async function syncUsers(): Promise<void> {
     console.log("Settings SOB permissions")
     for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
+            console.log("Looking at" + entry['mail']);
             if (entry['mail'] === 'm999@gewis.nl') {
-                if (entry[MailcowPermissions.mailPermRO].length != 0)
+                // if (entry[MailcowPermissions.mailPermRO].length != 0)
                     await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
             }
             // if (entry[MailcowPermissions.mailPermRW].length != 0)
@@ -227,17 +228,17 @@ async function syncUsers(): Promise<void> {
 }
 
 async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions) {
-    const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
-        scope: 'sub',
-        attributes: ['memberFlattened']
-    });
-    updatePermissionsDB(entry['mail'],
-        (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
-        .then((results: ACLResults) => {
-            setMailPerm(entry['mail'], results.newUsers, type, false)
+    // const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
+    //     scope: 'sub',
+    //     attributes: ['memberFlattened']
+    // });
+    // updatePermissionsDB(entry['mail'],
+    //     (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
+    //     .then((results: ACLResults) => {
+            setMailPerm(entry['mail'], null, type, false)
             // setMailPerm(entry['mail'], results.removedUsers, type,true)
-        }
-    )
+        // }
+    // )
 }
 
 async function syncUserSOB(entry: LDAPResults) {
