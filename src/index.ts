@@ -377,7 +377,7 @@ async function readPassDBConfig(): Promise<string> {
  */
 async function readDovecotExtraConfig(): Promise<string> {
     const options: ReplaceInFileConfig = {
-        files: './templates/dovecot/ldap/extra.conf',
+        files: './templates/dovecot/extra.conf',
         from: ['$doveadm_api_key'],
         to: [
             config['DOVEADM_API_KEY']
