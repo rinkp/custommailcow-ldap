@@ -86,7 +86,7 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
     })
 
     // Check if user exists, if not, return immediately
-    if (user === undefined) {
+    if (user === undefined || user === null) {
         return db_user_data
     } else {
         // Update last time user has been checked
