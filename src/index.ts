@@ -2,12 +2,12 @@
 import {
     activityUserDB,
     addUserDB,
-    checkUserDB, getChangedSOB,
+    checkUserDB,
+    getChangedSOB,
     getUncheckedActiveUsers,
     initializeDB,
     resetUserChanged,
     setSessionTime,
-    updatePermissionsDB,
     updateSOBDB,
 } from "./filedb";
 import {replaceInFile, ReplaceInFileConfig} from 'replace-in-file'
@@ -16,15 +16,7 @@ import path from "path";
 import {SearchResult} from "ldapts/Client";
 import {addUserAPI, checkUserAPI, editUserAPI, initializeMailcowAPI} from "./mailcowAPI";
 
-import {
-    ACLResults,
-    ActiveUserSetting,
-    ContainerConfig,
-    LDAPResults,
-    MailcowPermissions,
-    UserDataAPI,
-    UserDataDB
-} from "./types";
+import {ActiveUserSetting, ContainerConfig, LDAPResults, MailcowPermissions, UserDataAPI, UserDataDB} from "./types";
 import {initializeDovecotAPI, setMailPerm} from "./dovecotAPI";
 
 // Set all default variables
@@ -73,8 +65,8 @@ async function initializeSync(): Promise<void> {
     const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig)
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
     if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
-    // eslint-disable-next-line max-len
-    console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
+        // eslint-disable-next-line max-len
+        console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
 
     // Start 'connection' with database
     console.log("Initializing")
@@ -174,10 +166,10 @@ async function syncUsers(): Promise<void> {
     console.log("Setting SOB permissions")
     for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
-            if (entry['mail'] === 'm9006@gewis.nl') {
+            if (entry['mail'] === 'pm@gewis.nl') {
                 console.log("Looking at M999!");
                 // if (entry[MailcowPermissions.mailPermRO].length != 0)
-                    await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
+                await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
             }
             // if (entry[MailcowPermissions.mailPermRW].length != 0)
             //     await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
@@ -210,7 +202,7 @@ async function syncUsers(): Promise<void> {
         try {
             // Get user data from Mailcow
             const userDataAPI: UserDataAPI = await checkUserAPI(user.email)
-            const userDataDB:  UserDataDB = await checkUserDB(user.email)
+            const userDataDB: UserDataDB = await checkUserDB(user.email)
             const inactiveCount = userDataDB['inactiveCount']
 
             // Check if user has not existed for 96 iterations (96 * 900 = 24 hours), if so, set to inactive
@@ -234,6 +226,8 @@ async function syncUsers(): Promise<void> {
 }
 
 async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions) {
+    await setMailPerm(entry['mail'], ["m999@gewis.nl"], MailcowPermissions.mailPermRW, true)
+
     // const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
     //     scope: 'sub',
     //     attributes: ['memberFlattened']
@@ -241,11 +235,10 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
     // updatePermissionsDB(entry['mail'],
     //     (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
     //     .then((results: ACLResults) => {
-    console.log("Made it to syncUserPermissions")
-            await setMailPerm(entry['mail'], null, type, false)
-            // setMailPerm(entry['mail'], results.removedUsers, type,true)
-        // }
-    // )
+    //             console.log("Made it to syncUserPermissions")
+    //         setMailPerm(entry['mail'], ["m999@gewis.nl"], type,true)
+    //         }
+    //     )
 }
 
 async function syncUserSOB(entry: LDAPResults) {

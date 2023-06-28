@@ -2,7 +2,7 @@ import axios, {AxiosInstance} from "axios";
 import {
     ContainerConfig,
     DoveadmExchangeResult,
-    DoveadmExchanges,
+    DoveadmExchanges, DoveadmRequestData,
     DoveadmRights,
     MailcowPermissions
 } from "./types";
@@ -40,7 +40,8 @@ async function getMailboxes(email: string): Promise<string[]> {
     )).data as DoveadmExchanges
 
     // Convert response to array of mailboxes
-    return response[0][1].filter(function(item : DoveadmExchangeResult){
+    const mailboxObjects : DoveadmRequestData = response[0][1]
+    return mailboxObjects.filter(function(item : DoveadmExchangeResult){
         return !item.mailbox.startsWith("Shared")
     }).map((item : DoveadmExchangeResult) => {
         return item.mailbox;
@@ -56,57 +57,73 @@ async function getMailboxes(email: string): Promise<string[]> {
  */
 export async function setMailPerm(email: string, users: string[], type: MailcowPermissions, remove: boolean) {
     console.log("Made it to setMailPerm")
-    // let mailboxes;
-    // if (type == MailcowPermissions.mailPermROInbox) {
-    //     mailboxes = ['Inbox']
-    // } else if (type == MailcowPermissions.mailPermROSent) {
-    //     mailboxes = ['Sent']
-    // } else {
-    console.log(await getMailboxes(email))
-    // }
+    let mailboxes: string[] = [];
 
+    // TODO inheritenace van shit type van boven; hoogste prioriteit belangrijksste
+    let tag;
+    if (type == MailcowPermissions.mailPermROInbox) {
+        mailboxes = mailboxes.concat(['INBOX', 'Inbox']);
+        tag = "PermROInbox"
+    }
+
+    if (type == MailcowPermissions.mailPermROSent) {
+        if (tag === null) {
+            tag = "PermROSent"
+        } else {
+            tag = "PermROInboxSent"
+        }
+        mailboxes.push('Sent');
+    }
+
+    if (type == MailcowPermissions.mailPermRO || MailcowPermissions.mailPermRW) {
+        mailboxes = await getMailboxes(email);
+        tag = "PermRO"
+    }
 
     // Create one big request for all mailboxes and users that should be added
-    // const requests = []
-    // for (const mailbox in mailboxes) {
-    //     for (const user in users) {
-    //         const request = [
-    //             // Check if users should be removed or added
-    //             remove ? 'actRemove' : 'aclSet',
-    //             {
-    //                 'user': email,
-    //                 'id': `user=${user}`,
-    //                 'mailbox': mailbox,
-    //                 'right': [
-    //                     DoveadmRights.lookup,
-    //                     DoveadmRights.read,
-    //                     DoveadmRights.write,
-    //                     DoveadmRights.write_seen,
-    //                 ]
-    //             },
-    //             // Give unique tag
-    //             `PermRW_${email}_${user}`
-    //         ]
-    //         // If read and write permissions, add extra doveadm rights
-    //         if (type == MailcowPermissions.mailPermRW) {
-    //             (request[0] as DoveadmExchangeResult)['right'].concat([
-    //                 DoveadmRights.write_deleted,
-    //                 DoveadmRights.insert,
-    //                 DoveadmRights.post,
-    //                 DoveadmRights.expunge,
-    //                 DoveadmRights.create,
-    //                 DoveadmRights.delete,
-    //             ])
-    //         }
-    //         requests.push(request)
-    //     }
-    // }
+    const requests = []
+    for (const mailbox of mailboxes) {
+        for (const user of users) {
+            let rights = [
+                DoveadmRights.lookup,
+                DoveadmRights.read,
+                DoveadmRights.write,
+                DoveadmRights.write_seen,
+            ]
+
+            if (type === MailcowPermissions.mailPermRW) {
+                rights = rights.concat([
+                    DoveadmRights.write_deleted,
+                    DoveadmRights.insert,
+                    DoveadmRights.post,
+                    DoveadmRights.expunge,
+                    DoveadmRights.create,
+                    DoveadmRights.delete
+                ])
+            }
+
+            const request : DoveadmRequestData = [
+                // Check if users should be removed or added
+                remove ? 'aclRemove' : 'aclSet',
+                {
+                    'user': email,
+                    'id': `user=${user}`,
+                    'mailbox': mailbox,
+                    'right': rights
+                },
+                type === MailcowPermissions.mailPermRW ? `PermRW_${email}_${user}` : `${tag}_${email}_${user}`
+            ]
+
+            requests.push(request)
+        }
+    }
+
+    console.log(requests[0][1])
 
     // Post request
-    // const response = await dovecotClient.post(
-    //     '', requests
-    // );
-    // console.log(response)
+    await dovecotClient.post(
+        '', requests
+    );
 }
 
 
