@@ -82,7 +82,9 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
 
     // Find first user with email
     const user: Users = await userRepository.findOne({
-        email: email
+        where: {
+            email: email
+        }
     })
 
     // Check if user exists, if not, return immediately
@@ -110,7 +112,9 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
 export async function activityUserDB(email: string, active: ActiveUserSetting, inactiveCount: number): Promise<void> {
     // Retrieve user with email
     const user: Users = await userRepository.findOne({
-        email: email
+        where: {
+            email: email
+        }
     })
     // Set new activity of user
     user.active = active
@@ -126,7 +130,9 @@ export async function activityUserDB(email: string, active: ActiveUserSetting, i
 export async function updateSOBDB(email: string, SOBEmail: string): Promise<void> {
     // Retrieve user with email
     const user: Users = await userRepository.findOne({
-        email: email
+        where: {
+            email: email
+        }
     })
 
     // Check if permissions for ACL are set
@@ -155,7 +161,9 @@ export async function getChangedSOB(): Promise<SOBList[]> {
 export async function resetUserChanged(email: string): Promise<void> {
     // Find first user with email
     const user: Users = await userRepository.findOne({
-        email: email
+        where: {
+            email: email
+        }
     })
 
     user.changedSOB = false;
@@ -178,7 +186,9 @@ export async function updatePermissionsDB(email: string, newUsers: string[], per
 
     // Find first user with email
     const user: Users = await userRepository.findOne({
-        email: email
+        where: {
+            email: email
+        }
     })
 
     // Get existing permissions from mailbox

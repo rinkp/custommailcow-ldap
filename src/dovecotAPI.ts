@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from "axios";
+import axios, {AxiosInstance} from "axios";
 import {
     ContainerConfig,
     DoveadmExchangeResult,
@@ -14,8 +14,8 @@ export async function initializeDovecotAPI(config: ContainerConfig): Promise<voi
         // baseURL: `${config.DOVEADM_API_HOST}/doveadm/v1`,
         baseURL: 'http://172.22.1.250:9000/doveadm/v1',
         headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `X-Dovecot-API ${config.DOVEADM_API_KEY}`
+            'Content-Type': 'text/plain',
+            'Authorization': `X-Dovecot-API ${Buffer.from(config.DOVEADM_API_KEY).toString('base64')}`
         }
     });
 }
@@ -26,21 +26,25 @@ export async function initializeDovecotAPI(config: ContainerConfig): Promise<voi
  */
 async function getMailboxes(email: string): Promise<string[]> {
     // Get all mailboxes
-    // const response = (await dovecotClient.post(
-    //     '',
-    //     [[
-    //         "mailboxList",
-    //         {
-    //             "user": email
-    //         },
-    //         `mailboxList_${email}`
-    //     ]]
-    // )) as DoveadmExchanges
-    // // Convert response to array of mailboxes
-    // return response.doveadmExchange[0].doveadmRequestData.data.map((item) => {
-    //     return item.mailbox;
-    // });
-    return ["test"];
+    console.log("Made it to getMailboxes")
+
+    const response = (await dovecotClient.post(
+        '',
+        [[
+            "mailboxList",
+            {
+                "user": email
+            },
+            `mailboxList_${email}`
+        ]]
+    )).data as DoveadmExchanges
+
+    // Convert response to array of mailboxes
+    return response[0][1].filter(function(item : DoveadmExchangeResult){
+        return !item.mailbox.startsWith("Shared")
+    }).map((item : DoveadmExchangeResult) => {
+        return item.mailbox;
+    });
 }
 
 /**
@@ -51,16 +55,16 @@ async function getMailboxes(email: string): Promise<string[]> {
  * @param remove - whether permissions should be removed or added
  */
 export async function setMailPerm(email: string, users: string[], type: MailcowPermissions, remove: boolean) {
+    console.log("Made it to setMailPerm")
     // let mailboxes;
     // if (type == MailcowPermissions.mailPermROInbox) {
     //     mailboxes = ['Inbox']
     // } else if (type == MailcowPermissions.mailPermROSent) {
     //     mailboxes = ['Sent']
     // } else {
-    const mailboxes = await getMailboxes(email);
+    console.log(await getMailboxes(email))
     // }
 
-    console.log(mailboxes)
 
     // Create one big request for all mailboxes and users that should be added
     // const requests = []

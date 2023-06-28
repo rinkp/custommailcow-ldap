@@ -51,34 +51,33 @@ async function initializeSync(): Promise<void> {
     readConfig()
 
     // Connect to LDAP server using config
+    console.log("Binding LDAP")
     LDAPConnector = new Client({
         url: config['LDAP_URI'],
     })
     await LDAPConnector.bind(config['LDAP_BIND_DN'], config['LDAP_BIND_DN_PASSWORD'])
-    console.log("checkpoint #1")
 
     // Adjust template files
+    console.log("Reading DB config")
     const passDBConfig: string = await readPassDBConfig();
-    console.log("checkpoint #2")
+    console.log("Reading PList")
     const pListLDAP: string = await readPListLDAP();
-    console.log("checkpoint #3")
+    console.log("Reading Dovecot config")
     // Read data in extra config file
+    console.log("Reading Extra config")
     const extraConfig: string = await readDovecotExtraConfig();
-    console.log("checkpoint #4")
 
     // Apply all config files, see if any changed
+    console.log("Applying configs")
     const passDBConfigChanged: boolean = applyConfig('./conf/dovecot/ldap/passdb.conf', passDBConfig)
-    console.log("checkpoint #5")
     const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig)
-    console.log("checkpoint #6")
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
-    console.log("checkpoint #7")
-
     if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
     // eslint-disable-next-line max-len
     console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
 
     // Start 'connection' with database
+    console.log("Initializing")
     await initializeDB()
     await initializeMailcowAPI(config)
     await initializeDovecotAPI(config)
@@ -172,11 +171,11 @@ async function syncUsers(): Promise<void> {
     }
 
     // Set all permissions for mailboxes
-    console.log("Settings SOB permissions")
+    console.log("Setting SOB permissions")
     for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
-            console.log("Looking at" + entry['mail']);
-            if (entry['mail'] === 'm999@gewis.nl') {
+            if (entry['mail'] === 'm9006@gewis.nl') {
+                console.log("Looking at M999!");
                 // if (entry[MailcowPermissions.mailPermRO].length != 0)
                     await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
             }
@@ -242,7 +241,8 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
     // updatePermissionsDB(entry['mail'],
     //     (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
     //     .then((results: ACLResults) => {
-            setMailPerm(entry['mail'], null, type, false)
+    console.log("Made it to syncUserPermissions")
+            await setMailPerm(entry['mail'], null, type, false)
             // setMailPerm(entry['mail'], results.removedUsers, type,true)
         // }
     // )
@@ -393,7 +393,7 @@ async function readDovecotExtraConfig(): Promise<string> {
         ],
     };
     await replaceInFile(options)
-    return fs.readFileSync('./templates/dovecot/ldap/extra.conf', 'utf8')
+    return fs.readFileSync('./templates/dovecot/extra.conf', 'utf8')
 }
 
 /**

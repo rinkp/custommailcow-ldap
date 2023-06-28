@@ -57,20 +57,21 @@ export interface SOBList {
     email: string;
     mailPermSOB: string;
 }
+export type DoveadmExchanges = DoveadmExchange[]
+// [
+//     [
+//         'doveadmResponse',
+//         [ [Object], [Object], [Object], [Object], [Object], [Object] ],
+//         'mailboxList_m999@gewis.nl'
+//     ]
+// ]
 
-export interface DoveadmExchanges {
-    doveadmExchange: DoveadmExchange[]
-}
 
-export interface DoveadmExchange {
-    doveadmRequestData: DoveadmRequestData
-}
+export type DoveadmExchange = DoveadmRequestData[]
 
-export interface DoveadmRequestData {
-    type: string,
-    data: DoveadmExchangeResult[],
-    tag: string
-}
+export type DoveadmRequestData = [string, DoveadmExchangeResult, string]
+
+// [["mailboxList",{"user":"m999@gewis.nl"},"mailboxList_m999@gewis.nl"]]
 
 export interface DoveadmExchangeResult {
     mailbox?: string
