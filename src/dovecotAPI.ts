@@ -26,8 +26,6 @@ export async function initializeDovecotAPI(config: ContainerConfig): Promise<voi
  */
 async function getMailboxes(email: string): Promise<string[]> {
     // Get all mailboxes
-    console.log("Made it to getMailboxes")
-
     const response = (await dovecotClient.post(
         '',
         [[
@@ -56,10 +54,8 @@ async function getMailboxes(email: string): Promise<string[]> {
  * @param remove - whether permissions should be removed or added
  */
 export async function setMailPerm(email: string, users: string[], type: MailcowPermissions, remove: boolean) {
-    console.log("Made it to setMailPerm")
     let mailboxes: string[] = [];
 
-    // TODO inheritenace van shit type van boven; hoogste prioriteit belangrijksste
     let tag;
     if (type == MailcowPermissions.mailPermROInbox) {
         mailboxes = mailboxes.concat(['INBOX', 'Inbox']);
@@ -117,8 +113,6 @@ export async function setMailPerm(email: string, users: string[], type: MailcowP
             requests.push(request)
         }
     }
-
-    console.log(requests[0][1])
 
     // Post request
     await dovecotClient.post(

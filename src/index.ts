@@ -7,7 +7,7 @@ import {
     getUncheckedActiveUsers,
     initializeDB,
     resetUserChanged,
-    setSessionTime,
+    setSessionTime, updatePermissionsDB,
     updateSOBDB,
 } from "./filedb";
 import {replaceInFile, ReplaceInFileConfig} from 'replace-in-file'
@@ -16,7 +16,15 @@ import path from "path";
 import {SearchResult} from "ldapts/Client";
 import {addUserAPI, checkUserAPI, editUserAPI, initializeMailcowAPI} from "./mailcowAPI";
 
-import {ActiveUserSetting, ContainerConfig, LDAPResults, MailcowPermissions, UserDataAPI, UserDataDB} from "./types";
+import {
+    ACLResults,
+    ActiveUserSetting,
+    ContainerConfig,
+    LDAPResults,
+    MailcowPermissions,
+    UserDataAPI,
+    UserDataDB
+} from "./types";
 import {initializeDovecotAPI, setMailPerm} from "./dovecotAPI";
 
 // Set all default variables
@@ -64,9 +72,9 @@ async function initializeSync(): Promise<void> {
     const passDBConfigChanged: boolean = applyConfig('./conf/dovecot/ldap/passdb.conf', passDBConfig)
     const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig)
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
-    if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
-        // eslint-disable-next-line max-len
+    if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged) {
         console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
+    }
 
     // Start 'connection' with database
     console.log("Initializing")
@@ -102,6 +110,7 @@ async function syncUsers(): Promise<void> {
         attributes: ['mail', 'displayName', 'userAccountControl', 'mailPermRO', 'mailPermRW',
             'mailPermROInbox', 'mailPermROSent', 'mailPermSOB']
     })
+
 
     // Update session time
     setSessionTime()
@@ -162,21 +171,24 @@ async function syncUsers(): Promise<void> {
         }
     }
 
+    let count = 0
+
     // Set all permissions for mailboxes
     console.log("Setting SOB permissions")
     for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
-            if (entry['mail'] === 'pm@gewis.nl') {
-                console.log("Looking at M999!");
-                // if (entry[MailcowPermissions.mailPermRO].length != 0)
-                await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
+            // TODO inheritance and efficiency; if array is zero permissions should still be updated!
+            if (count < 500) {
+                count++;
+                if (entry[MailcowPermissions.mailPermRO].length != 0)
+                    await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
+                // if (entry[MailcowPermissions.mailPermRW].length != 0)
+                //     await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
+                // if (entry[MailcowPermissions.mailPermROInbox].length != 0)
+                //     await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
+                // if (entry[MailcowPermissions.mailPermROSent].length != 0)
+                //     await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
             }
-            // if (entry[MailcowPermissions.mailPermRW].length != 0)
-            //     await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
-            // if (entry[MailcowPermissions.mailPermROInbox].length != 0)
-            //     await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
-            // if (entry[MailcowPermissions.mailPermROSent].length != 0)
-            //     await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
             if (entry[MailcowPermissions.mailPermSOB].length != 0) await syncUserSOB(entry);
         } catch (error) {
             console.log(`Exception throw during handling of ${entry}: ${error}`)
@@ -225,20 +237,26 @@ async function syncUsers(): Promise<void> {
     }
 }
 
+/**
+ * Sync all the permissions for ACLs
+ * @param entry - current mailbox (users will get permission to this mailbox)
+ * @param type - type of permission being considered
+ */
 async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions) {
-    await setMailPerm(entry['mail'], ["m999@gewis.nl"], MailcowPermissions.mailPermRW, true)
+    // Get mail permissions group
+    const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
+        scope: 'sub',
+        attributes: ['memberFlattened']
+    });
 
-    // const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
-    //     scope: 'sub',
-    //     attributes: ['memberFlattened']
-    // });
-    // updatePermissionsDB(entry['mail'],
-    //     (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
-    //     .then((results: ACLResults) => {
-    //             console.log("Made it to syncUserPermissions")
-    //         setMailPerm(entry['mail'], ["m999@gewis.nl"], type,true)
-    //         }
-    //     )
+    // Update all the permissions
+    updatePermissionsDB(entry['mail'],
+        (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
+        .then((results: ACLResults) => {
+                setMailPerm(entry['mail'], results.newUsers, type, false)
+                setMailPerm(entry['mail'], results.removedUsers, type, true)
+            }
+        )
 }
 
 async function syncUserSOB(entry: LDAPResults) {

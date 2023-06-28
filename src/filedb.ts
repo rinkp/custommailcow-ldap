@@ -194,6 +194,7 @@ export async function updatePermissionsDB(email: string, newUsers: string[], per
     // Get existing permissions from mailbox
     if(!newUsers) newUsers = [];
     if(!Array.isArray(newUsers)) newUsers = [newUsers];
+
     const removedUsers = !user ? [] : user[permission].split(';');
 
     // Filter for new users
