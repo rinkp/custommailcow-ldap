@@ -6,6 +6,7 @@ import {
     DoveadmRights,
     MailcowPermissions
 } from "./types";
+import {SearchResult} from "ldapts/Client";
 
 let dovecotClient: AxiosInstance;
 
@@ -38,10 +39,10 @@ async function getMailboxes(email: string): Promise<string[]> {
     )).data as DoveadmExchanges
 
     // Convert response to array of mailboxes
-    const mailboxObjects : DoveadmRequestData = response[0][1]
-    return mailboxObjects.filter(function(item : DoveadmExchangeResult){
+    const mailboxObjects: DoveadmRequestData = response[0][1]
+    return mailboxObjects.filter(function (item: DoveadmExchangeResult) {
         return !item.mailbox.startsWith("Shared")
-    }).map((item : DoveadmExchangeResult) => {
+    }).map((item: DoveadmExchangeResult) => {
         return item.mailbox;
     });
 }
@@ -80,6 +81,7 @@ export async function setMailPerm(email: string, users: string[], type: MailcowP
     const requests = []
     for (const mailbox of mailboxes) {
         for (const user of users) {
+
             let rights = [
                 DoveadmRights.lookup,
                 DoveadmRights.read,
@@ -98,7 +100,7 @@ export async function setMailPerm(email: string, users: string[], type: MailcowP
                 ])
             }
 
-            const request : DoveadmRequestData = [
+            const request: DoveadmRequestData = [
                 // Check if users should be removed or added
                 remove ? 'aclRemove' : 'aclSet',
                 {
@@ -114,10 +116,19 @@ export async function setMailPerm(email: string, users: string[], type: MailcowP
         }
     }
 
-    // Post request
-    await dovecotClient.post(
-        '', requests
-    );
+    if (requests.length > 25) {
+        const chunkSize = 25
+        for (let i = 0; i < chunkSize; i += chunkSize) {
+            await dovecotClient.post(
+                '', requests.slice(i, i + chunkSize)
+            );
+        }
+    } else {
+        // Post request
+        await dovecotClient.post(
+            '', requests
+        );
+    }
 }
 
 

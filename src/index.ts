@@ -72,9 +72,8 @@ async function initializeSync(): Promise<void> {
     const passDBConfigChanged: boolean = applyConfig('./conf/dovecot/ldap/passdb.conf', passDBConfig)
     const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig)
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
-    if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged) {
+    if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
         console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
-    }
 
     // Start 'connection' with database
     console.log("Initializing")
@@ -171,25 +170,22 @@ async function syncUsers(): Promise<void> {
         }
     }
 
-    let count = 0
+    // let count = 0
 
     // Set all permissions for mailboxes
-    console.log("Setting SOB permissions")
+    console.log("Setting ACL permissions")
     for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
         try {
-            // TODO inheritance and efficiency; if array is zero permissions should still be updated!
-            if (count < 500) {
-                count++;
-                if (entry[MailcowPermissions.mailPermRO].length != 0)
-                    await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
-                // if (entry[MailcowPermissions.mailPermRW].length != 0)
-                //     await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
-                // if (entry[MailcowPermissions.mailPermROInbox].length != 0)
-                //     await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
-                // if (entry[MailcowPermissions.mailPermROSent].length != 0)
-                //     await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
-            }
-            if (entry[MailcowPermissions.mailPermSOB].length != 0) await syncUserSOB(entry);
+            if (entry[MailcowPermissions.mailPermROInbox].length != 0)
+                await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
+            if (entry[MailcowPermissions.mailPermROSent].length != 0)
+                await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
+            if (entry[MailcowPermissions.mailPermRO].length != 0)
+                await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
+            if (entry[MailcowPermissions.mailPermRW].length != 0)
+                await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
+            if (entry[MailcowPermissions.mailPermSOB].length != 0)
+                await syncUserSOB(entry);
         } catch (error) {
             console.log(`Exception throw during handling of ${entry}: ${error}`)
         }
@@ -250,11 +246,38 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
     });
 
     // Update all the permissions
-    updatePermissionsDB(entry['mail'],
+    await updatePermissionsDB(entry['mail'],
         (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
-        .then((results: ACLResults) => {
-                setMailPerm(entry['mail'], results.newUsers, type, false)
-                setMailPerm(entry['mail'], results.removedUsers, type, true)
+        .then(async (results: ACLResults) => {
+                // Map newUsers to actual emails
+                if (results.newUsers.length != 0) {
+                    results.newUsers = await Promise.all(results.newUsers.map(async user => {
+                            const userResults: SearchResult = await LDAPConnector.search(user, {
+                                scope: 'sub',
+                                attributes: ['mail']
+                            });
+                            const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
+                            return userMail[0]['mail'];
+                        })
+                    )
+                    console.log(`User(s) ${results.newUsers} added to ${entry['mail']} for ${type}`)
+                    await setMailPerm(entry['mail'], results.newUsers, type, false)
+                }
+
+                // Map oldUsers to actual emails
+                if (results.removedUsers.length != 0) {
+                    results.removedUsers = await Promise.all(results.removedUsers.map(async user => {
+                            const userResults: SearchResult = await LDAPConnector.search(user, {
+                                scope: 'sub',
+                                attributes: ['mail']
+                            });
+                            const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
+                            return userMail[0]['mail'];
+                        })
+                    )
+                    console.log(`User(s) ${results.removedUsers} removed from ${entry['mail']} for ${type}`)
+                    await setMailPerm(entry['mail'], results.removedUsers, type, true)
+                }
             }
         )
 }
@@ -272,12 +295,12 @@ async function syncUserSOB(entry: LDAPResults) {
         if (!Array.isArray(members['memberFlattened']))
             members['memberFlattened'] = [members['memberFlattened']]
         for (const member of members['memberFlattened']) {
-            const member_results: SearchResult = await LDAPConnector.search(member, {
+            const memberResults: SearchResult = await LDAPConnector.search(member, {
                 scope: 'sub',
                 attributes: ['mail']
             });
-            const member_mail = member_results['searchEntries'] as unknown as LDAPResults[];
-            await updateSOBDB(member_mail[0]['mail'], entry['mail']);
+            const memberMail = memberResults['searchEntries'] as unknown as LDAPResults[];
+            await updateSOBDB(memberMail[0]['mail'], entry['mail']);
         }
     }
 }
@@ -287,7 +310,7 @@ async function syncUserSOB(entry: LDAPResults) {
  */
 function readConfig(): void {
     // All required config keys
-    const required_config_keys: string[] = [
+    const requiredConfigKeys: string[] = [
         'LDAP-MAILCOW_LDAP_URI',
         'LDAP-MAILCOW_LDAP_GC_URI',
         'LDAP-MAILCOW_LDAP_DOMAIN',
@@ -301,12 +324,12 @@ function readConfig(): void {
     ]
 
     // Check if all keys are set in the environment
-    for (const config_key of required_config_keys) {
-        if (!(config_key in process.env)) throw new Error(`Required environment value ${config_key} is not set`)
-        console.log(`Required environment value ${config_key} has been set`)
+    for (const configKey of requiredConfigKeys) {
+        if (!(configKey in process.env)) throw new Error(`Required environment value ${configKey} is not set`)
+        console.log(`Required environment value ${configKey} has been set`)
 
         // Add keys to local config variable
-        config[config_key.replace('LDAP-MAILCOW_', '') as keyof ContainerConfig] = process.env[config_key]
+        config[configKey.replace('LDAP-MAILCOW_', '') as keyof ContainerConfig] = process.env[configKey]
     }
 
     // Check if Sogo filter is set
@@ -326,7 +349,7 @@ function readConfig(): void {
     if ('LDAP-MAILCOW_SOGO_LDAP_FILTER' in process.env)
         config['SOGO_LDAP_FILTER'] = process.env['LDAP-MAILCOW_SOGO_LDAP_FILTER']
 
-    console.log("Read and configured all environment varables")
+    console.log("Read and configured all environment variables")
 }
 
 /**

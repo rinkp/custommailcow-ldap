@@ -14,10 +14,10 @@ const options: ConnectionOptions = {
 }
 
 let userRepository: Repository<Users>;
-let session_time: number = new Date().getTime();
+let sessionTime: number = new Date().getTime();
 
 export function setSessionTime(): void {
-    session_time = new Date().getTime()
+    sessionTime = new Date().getTime()
 }
 
 /**
@@ -38,7 +38,7 @@ export async function getUncheckedActiveUsers(): Promise<Users[]> {
     return Promise.resolve(userRepository.find({
         select: ["email"],
         where: {
-            lastSeen: Not(session_time),
+            lastSeen: Not(sessionTime),
             active: Not(0)
         }
     }))
@@ -64,7 +64,7 @@ export async function addUserDB(email: string, active: ActiveUserSetting): Promi
         changedROSent: 0,
         mailPermSOB: '',
         changedSOB: 0,
-        lastSeen: session_time,
+        lastSeen: sessionTime,
     })
     await userRepository.save(user)
 }
@@ -74,7 +74,7 @@ export async function addUserDB(email: string, active: ActiveUserSetting): Promi
  * @param email - mail from to be retrieved user
  */
 export async function checkUserDB(email: string): Promise<UserDataDB> {
-    const db_user_data: UserDataDB = {
+    const dbUserData: UserDataDB = {
         exists: false,
         isActive: undefined,
         inactiveCount: 0
@@ -89,17 +89,17 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
 
     // Check if user exists, if not, return immediately
     if (user === undefined || user === null) {
-        return db_user_data
+        return dbUserData
     } else {
         // Update last time user has been checked
-        user.lastSeen = session_time
+        user.lastSeen = sessionTime
         await userRepository.update(user.email, user)
 
         // Return information of user
-        db_user_data['exists'] = true
-        db_user_data['isActive'] = user.active
-        db_user_data['inactiveCount'] = user.inactiveCount
-        return db_user_data
+        dbUserData['exists'] = true
+        dbUserData['isActive'] = user.active
+        dbUserData['inactiveCount'] = user.inactiveCount
+        return dbUserData
     }
 }
 
@@ -197,9 +197,9 @@ export async function updatePermissionsDB(email: string, newUsers: string[], per
 
     const removedUsers = !user ? [] : user[permission].split(';');
 
-    // Filter for new users
-    updatedUsers.newUsers = newUsers.filter(x => !removedUsers.includes(x));
-    updatedUsers.removedUsers = removedUsers.filter(x => !newUsers.includes(x));
+    // Filter for new users, also filter empty entries
+    updatedUsers.newUsers = newUsers.filter(x => !removedUsers.includes(x) && x != '');
+    updatedUsers.removedUsers = removedUsers.filter(x => !newUsers.includes(x) && x != '');
 
     // Put new user list in database
     user[permission] = newUsers.join(';');
