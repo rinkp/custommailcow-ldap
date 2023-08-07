@@ -73,7 +73,7 @@ def sync():
                 unchanged = False
 
             if not api_user_exists:
-                api.add_user(email, ldap_name, ldap_active, 256)
+                api.add_user(email, ldap_name, ldap_active)
                 (api_user_exists, api_user_active, api_name) = (True, ldap_active, ldap_name)
                 logging.info(f"Added Mailcow user: {email} (Active: {ldap_active})")
                 unchanged = False
