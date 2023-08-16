@@ -2,7 +2,7 @@
 import 'reflect-metadata'
 import {Users} from './entities/User'
 import fs from "fs";
-import {MailcowPermissions, ACLResults, ActiveUserSetting, UserDataDB, SOBList} from "./types";
+import {MailcowPermissions, ACLResults, ActiveUserSetting, UserDataDB} from "./types";
 
 // Connection options for the DB
 const options: ConnectionOptions = {
@@ -63,7 +63,7 @@ export async function addUserDB(email: string, active: ActiveUserSetting): Promi
         mailPermROSent: '',
         changedROSent: 0,
         mailPermSOB: '',
-        changedSOB: 0,
+        newMailPermSOB: '',
         lastSeen: sessionTime,
     })
     await userRepository.save(user)
@@ -127,7 +127,7 @@ export async function activityUserDB(email: string, active: ActiveUserSetting, i
  * @param email - email of user
  * @param SOBEmail - acl to check
  */
-export async function updateSOBDB(email: string, SOBEmail: string): Promise<void> {
+export async function createSOBDB(email: string, SOBEmail: string): Promise<void> {
     // Retrieve user with email
     const user: Users = await userRepository.findOne({
         where: {
@@ -136,38 +136,32 @@ export async function updateSOBDB(email: string, SOBEmail: string): Promise<void
     })
 
     // Check if permissions for ACL are set
-    const SOB = !user[MailcowPermissions.mailPermSOB] ? [] : user[MailcowPermissions.mailPermSOB].split(';');
+    const SOB = !user.newMailPermSOB ? [] : user.newMailPermSOB.split(';');
 
-    // Check if sob mail is in list, if not, add it
+    // Check if sob mail is in list (it should not be, but checking does not hurt)
     if (SOB.indexOf(SOBEmail) === -1) {
         SOB.push(SOBEmail)
-        user.changedSOB = true;
-        console.log(`New SOB added to ${email}. Now allowed to SOB ${SOBEmail}`)
-        user[MailcowPermissions.mailPermSOB] = SOB.join(';');
+        user.newMailPermSOB = SOB.join(';');
         await userRepository.update(user.email, user)
     }
 }
 
-export async function getChangedSOB(): Promise<SOBList[]> {
-    // Retrieve user with email
-    return await userRepository.createQueryBuilder()
-        .select(["email", "mailPermSOB"])
-        .where({
-            changedSOB: true
-        })
-        .execute()
-}
+export async function getChangedSOBDB(): Promise<Users[]> {
+    // First, check all users that actually have changed
+    const users = await userRepository.find();
+    const changedUsers : Users[] = []
 
-export async function resetUserChanged(email: string): Promise<void> {
-    // Find first user with email
-    const user: Users = await userRepository.findOne({
-        where: {
-            email: email
+    for (const user of users) {
+        if (user.newMailPermSOB != user.mailPermSOB) {
+            console.log(`SOB of ${user.email} changed from ${user.newMailPermSOB} to ${user.mailPermSOB}`)
+            user.mailPermSOB = user.newMailPermSOB
+            changedUsers.push(user)
         }
-    })
+        user.newMailPermSOB = '';
+        await userRepository.update(user.email, user)
+    }
 
-    user.changedSOB = false;
-    await userRepository.update(user.email, user)
+    return changedUsers;
 }
 
 

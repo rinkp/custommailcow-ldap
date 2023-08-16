@@ -2,14 +2,12 @@
 import {
     activityUserDB,
     addUserDB,
-    checkUserDB,
-    getChangedSOB,
+    checkUserDB, createSOBDB,
+    getChangedSOBDB,
     getUncheckedActiveUsers,
     initializeDB,
-    resetUserChanged,
     setSessionTime,
     updatePermissionsDB,
-    updateSOBDB,
 } from "./filedb";
 import {replaceInFile, ReplaceInFileConfig} from 'replace-in-file'
 import fs, {PathLike} from 'fs'
@@ -40,7 +38,7 @@ const config: ContainerConfig = {
     LDAP_DOMAIN: undefined,
     API_HOST: undefined,
     API_KEY: undefined,
-    SYNC_INTERVAL: undefined,
+    MAX_INACTIVE_COUNT: undefined,
     DOVEADM_API_KEY: undefined,
     DOVEADM_API_HOST: undefined
 }
@@ -184,12 +182,11 @@ async function syncUsers(): Promise<void> {
 
     // Make final changes for SOB
     console.log("Changing SOB in mailcow")
-    for (const entry of await getChangedSOB()) {
+    for (const entry of await getChangedSOBDB()) {
         try {
             console.log(`Changing SOB of ${entry.email}`)
             const SOBs = entry.mailPermSOB.split(';');
             await editUserAPI(entry.email, {sender_acl: SOBs})
-            await resetUserChanged(entry.email);
         } catch (error) {
             console.log(`Exception throw during handling of ${entry}: ${error}`)
         }
@@ -204,8 +201,7 @@ async function syncUsers(): Promise<void> {
             const userDataDB: UserDataDB = await checkUserDB(user.email)
             const inactiveCount = userDataDB['inactiveCount']
 
-            // Check if user has not existed for 96 iterations (96 * 900 = 24 hours), if so, set to inactive
-            if (inactiveCount > 96) {
+            if (inactiveCount > parseInt(config['MAX_INACTIVE_COUNT'])) {
                 console.log(`Deactivated user ${user.email} in filedb, not found in LDAP`)
                 await activityUserDB(user.email, 0, 255)
             } else {
@@ -229,7 +225,7 @@ async function syncUsers(): Promise<void> {
  * @param entry - current mailbox (users will get permission to this mailbox)
  * @param type - type of permission being considered
  */
-async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions) {
+async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions): Promise<void> {
     // Get mail permissions group
     const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
         scope: 'sub',
@@ -240,24 +236,9 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
     await updatePermissionsDB(entry['mail'],
         (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
         .then(async (results: ACLResults) => {
-
                 // Map newUsers to actual emails
                 if (results.newUsers.length != 0) {
-                    const newUserResult = []
-                    for (const user of results.newUsers) {
-                        const userResults: SearchResult = await LDAPConnector.search(user, {
-                            scope: 'sub',
-                            attributes: ['mail']
-                        });
-                        const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
-                        if (userMail[0]['mail'] != entry['mail']) {
-                            newUserResult.push(userMail[0]['mail']);
-                        } else {
-                            console.log(userMail[0]['mail'] + " and " + entry['mail'])
-                        }
-
-                    }
-                    results.newUsers = newUserResult;
+                    results.newUsers = await getUserMails(results.newUsers, entry);
 
                     console.log(`User(s) ${results.newUsers} added to ${entry['mail']} for ${type}`)
                     await setMailPerm(entry['mail'], results.newUsers, type, false)
@@ -265,20 +246,7 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
 
                 // Map oldUsers to actual emails
                 if (results.removedUsers.length != 0) {
-                    const removedUserResult = []
-                    for (const user of results.newUsers) {
-                        const userResults: SearchResult = await LDAPConnector.search(user, {
-                            scope: 'sub',
-                            attributes: ['mail']
-                        });
-                        const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
-                        if (userMail[0]['mail'] != entry['mail']) {
-                            removedUserResult.push(userMail[0]['mail']);
-                        } else {
-                            console.log(userMail[0]['mail'] + " and " + entry['mail'])
-                        }
-                    }
-                    results.removedUsers = removedUserResult;
+                    results.removedUsers = await getUserMails(results.removedUsers, entry);
 
                     console.log(`User(s) ${results.removedUsers} removed from ${entry['mail']} for ${type}`)
                     await setMailPerm(entry['mail'], results.removedUsers, type, true)
@@ -287,7 +255,20 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
         )
 }
 
-async function syncUserSOB(entry: LDAPResults) {
+async function getUserMails(users: string[], skipEntry: LDAPResults): Promise<string[]> {
+    const result = [];
+    for (const user of users) {
+        const userResults: SearchResult = await LDAPConnector.search(user, {
+            scope: 'sub',
+            attributes: ['mail']
+        });
+        const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
+        if (userMail[0]['mail'] != skipEntry['mail']) result.push(userMail[0]['mail']);
+    }
+    return result;
+}
+
+async function syncUserSOB(entry: LDAPResults): Promise<void> {
     const SOBResults: SearchResult = await LDAPConnector.search(entry[MailcowPermissions.mailPermSOB], {
         scope: 'sub',
         attributes: ['memberFlattened']
@@ -305,7 +286,7 @@ async function syncUserSOB(entry: LDAPResults) {
                 attributes: ['mail']
             });
             const memberMail = memberResults['searchEntries'] as unknown as LDAPResults[];
-            await updateSOBDB(memberMail[0]['mail'], entry['mail']);
+            await createSOBDB(memberMail[0]['mail'], entry['mail']);
         }
     }
 }
@@ -324,7 +305,7 @@ function readConfig(): void {
         'LDAP-MAILCOW_LDAP_BIND_DN_PASSWORD',
         'LDAP-MAILCOW_API_HOST',
         'LDAP-MAILCOW_API_KEY',
-        'LDAP-MAILCOW_SYNC_INTERVAL',
+        'LDAP-MAILCOW_MAX_INACTIVE_COUNT',
         'DOVEADM_API_KEY'
     ]
 

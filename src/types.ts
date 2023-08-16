@@ -9,7 +9,7 @@ export interface ContainerConfig {
     LDAP_DOMAIN: string,
     API_HOST: string,
     API_KEY: string,
-    SYNC_INTERVAL: string,
+    MAX_INACTIVE_COUNT: string,
     DOVEADM_API_KEY: string,
     DOVEADM_API_HOST: string
 }
@@ -53,10 +53,6 @@ export interface ACLResults {
     removedUsers?: string[];
 }
 
-export interface SOBList {
-    email: string;
-    mailPermSOB: string;
-}
 export type DoveadmExchanges = DoveadmExchange[]
 
 export type DoveadmExchange = DoveadmRequestData[]

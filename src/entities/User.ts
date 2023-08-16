@@ -28,7 +28,7 @@ export class Users {
     mailPermSOB: string
 
     @Column()
-    changedSOB: boolean
+    newMailPermSOB: string
 
     @Column()
     lastSeen: number;
