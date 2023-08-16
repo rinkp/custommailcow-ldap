@@ -1,12 +1,7 @@
 ﻿import MailCowClient from "ts-mailcow-api";
-import {
-    ACLEditRequest,
-    MailboxDeleteRequest,
-    MailboxEditRequest,
-    MailboxPostRequest
-} from "ts-mailcow-api/src/types";
+import {ACLEditRequest, MailboxDeleteRequest, MailboxEditRequest, MailboxPostRequest} from "ts-mailcow-api/src/types";
 import * as https from "https";
-import {UserDataAPI, ContainerConfig} from "./types";
+import {ContainerConfig, UserDataAPI} from "./types";
 import {Mailbox} from "ts-mailcow-api/dist/types";
 
 // Create MailCowClient based on BASE_URL and API_KEY
@@ -19,7 +14,15 @@ const passwordLength = 32;
  * Initialize database connection. Setup database if it does not yet exist
  */
 export async function initializeMailcowAPI(config: ContainerConfig): Promise<void> {
-    mailcowClient = new MailCowClient(config['API_HOST'], config['API_KEY'], {httpsAgent: new https.Agent({keepAlive: true})});
+    mailcowClient = new MailCowClient(
+        config['API_HOST'],
+        config['API_KEY'],
+        {
+            httpsAgent: new https.Agent({
+                keepAlive: true
+            })
+        }
+    );
 }
 
 /**
@@ -30,7 +33,8 @@ function generatePassword(length: number): string {
     let result = '';
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     const charactersLength: number = characters.length;
-    for (let i = 0; i < length; i++) result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    for (let i = 0; i < length; i++)
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
     return result;
 }
 
@@ -96,7 +100,11 @@ export async function addUserAPI(email: string, name: string, active: number, qu
  * @param options - options to be edited
  */
 // Todo add send from ACLs
-export async function editUserAPI(email: string, options?: { active?: number, name?: string, sender_acl?: string[] }): Promise<void> {
+export async function editUserAPI(email: string, options?: {
+    active?: number,
+    name?: string,
+    sender_acl?: string[]
+}): Promise<void> {
     const mailboxData: MailboxEditRequest = {
         'items': [email],
         'attr': options

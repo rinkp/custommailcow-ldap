@@ -7,7 +7,8 @@ import {
     getUncheckedActiveUsers,
     initializeDB,
     resetUserChanged,
-    setSessionTime, updatePermissionsDB,
+    setSessionTime,
+    updatePermissionsDB,
     updateSOBDB,
 } from "./filedb";
 import {replaceInFile, ReplaceInFileConfig} from 'replace-in-file'
@@ -73,7 +74,7 @@ async function initializeSync(): Promise<void> {
     const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig)
     const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP)
     if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
-        console.log("One or more config files have been changed, please make sure to restart dovecot-mailcow and sogo-mailcow!")
+        console.log("One or more config files have been changed, please restart dovecot-mailcow and sogo-mailcow!")
 
     // Start 'connection' with database
     console.log("Initializing")
@@ -82,20 +83,11 @@ async function initializeSync(): Promise<void> {
     await initializeDovecotAPI(config)
 
     // Start sync loop every interval milliseconds
-    while (true) {
-        console.log("Syncing users")
-        await syncUsers()
-        const interval = parseInt(config['SYNC_INTERVAL'])
-        console.log(`Sync finished, sleeping ${interval} seconds before next cycle`)
-        await delay(interval * 1000)
-    }
+    console.log("Syncing users")
+    await syncUsers()
 }
 
 initializeSync().then(() => console.log("Finished!"))
-
-function delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 /**
  * Synchronise LDAP users with Mailcow mailboxes and users stores in local DB
@@ -109,7 +101,6 @@ async function syncUsers(): Promise<void> {
         attributes: ['mail', 'displayName', 'userAccountControl', 'mailPermRO', 'mailPermRW',
             'mailPermROInbox', 'mailPermROSent', 'mailPermSOB']
     })
-
 
     // Update session time
     setSessionTime()
@@ -249,32 +240,46 @@ async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions)
     await updatePermissionsDB(entry['mail'],
         (permissionResults['searchEntries'][0] as unknown as LDAPResults)['memberFlattened'], type)
         .then(async (results: ACLResults) => {
+
                 // Map newUsers to actual emails
                 if (results.newUsers.length != 0) {
-                    results.newUsers = await Promise.all(results.newUsers.map(async user => {
-                            const userResults: SearchResult = await LDAPConnector.search(user, {
-                                scope: 'sub',
-                                attributes: ['mail']
-                            });
-                            const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
-                            return userMail[0]['mail'];
-                        })
-                    )
+                    const newUserResult = []
+                    for (const user of results.newUsers) {
+                        const userResults: SearchResult = await LDAPConnector.search(user, {
+                            scope: 'sub',
+                            attributes: ['mail']
+                        });
+                        const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
+                        if (userMail[0]['mail'] != entry['mail']) {
+                            newUserResult.push(userMail[0]['mail']);
+                        } else {
+                            console.log(userMail[0]['mail'] + " and " + entry['mail'])
+                        }
+
+                    }
+                    results.newUsers = newUserResult;
+
                     console.log(`User(s) ${results.newUsers} added to ${entry['mail']} for ${type}`)
                     await setMailPerm(entry['mail'], results.newUsers, type, false)
                 }
 
                 // Map oldUsers to actual emails
                 if (results.removedUsers.length != 0) {
-                    results.removedUsers = await Promise.all(results.removedUsers.map(async user => {
-                            const userResults: SearchResult = await LDAPConnector.search(user, {
-                                scope: 'sub',
-                                attributes: ['mail']
-                            });
-                            const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
-                            return userMail[0]['mail'];
-                        })
-                    )
+                    const removedUserResult = []
+                    for (const user of results.newUsers) {
+                        const userResults: SearchResult = await LDAPConnector.search(user, {
+                            scope: 'sub',
+                            attributes: ['mail']
+                        });
+                        const userMail = userResults['searchEntries'] as unknown as LDAPResults[];
+                        if (userMail[0]['mail'] != entry['mail']) {
+                            removedUserResult.push(userMail[0]['mail']);
+                        } else {
+                            console.log(userMail[0]['mail'] + " and " + entry['mail'])
+                        }
+                    }
+                    results.removedUsers = removedUserResult;
+
                     console.log(`User(s) ${results.removedUsers} removed from ${entry['mail']} for ${type}`)
                     await setMailPerm(entry['mail'], results.removedUsers, type, true)
                 }

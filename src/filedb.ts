@@ -1,4 +1,4 @@
-﻿import {ConnectionOptions, Repository, createConnection, getConnection, Not, Column} from 'typeorm';
+﻿import {ConnectionOptions, Repository, createConnection, getConnection, Not} from 'typeorm';
 import 'reflect-metadata'
 import {Users} from './entities/User'
 import fs from "fs";
