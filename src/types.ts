@@ -10,6 +10,7 @@ export interface ContainerConfig {
     API_HOST: string,
     API_KEY: string,
     MAX_INACTIVE_COUNT: string,
+    MAX_LDAP_RETRY_COUNT: string,
     DOVEADM_API_KEY: string,
     DOVEADM_API_HOST: string
 }

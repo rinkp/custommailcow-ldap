@@ -39,6 +39,7 @@ const config: ContainerConfig = {
     API_HOST: undefined,
     API_KEY: undefined,
     MAX_INACTIVE_COUNT: undefined,
+    MAX_LDAP_RETRY_COUNT: undefined,
     DOVEADM_API_KEY: undefined,
     DOVEADM_API_HOST: undefined
 }
@@ -93,18 +94,24 @@ initializeSync().then(() => console.log("Finished!"))
 async function syncUsers(): Promise<void> {
 
     // Search for al users, use filter and only display few attributes
-    const LDAPResults: SearchResult = await LDAPConnector.search(config['LDAP_BASE_DN'], {
-        scope: 'sub',
-        filter: config['LDAP_FILTER'],
-        attributes: ['mail', 'displayName', 'userAccountControl', 'mailPermRO', 'mailPermRW',
-            'mailPermROInbox', 'mailPermROSent', 'mailPermSOB']
-    })
+    let LDAPResults : LDAPResults[] = [];
+    let retryCount = 0
 
+    while (LDAPResults.length === 0 && retryCount < parseInt(config.MAX_LDAP_RETRY_COUNT)) {
+        console.log(`Attempt ${retryCount} to get LDAPResults`)
+        retryCount++;
+        LDAPResults = (await LDAPConnector.search(config['LDAP_BASE_DN'], {
+            scope: 'sub',
+            filter: config['LDAP_FILTER'],
+            attributes: ['mail', 'displayName', 'userAccountControl', 'mailPermRO', 'mailPermRW',
+                'mailPermROInbox', 'mailPermROSent', 'mailPermSOB']
+        }))['searchEntries'] as unknown as LDAPResults[];
+    }
     // Update session time
     setSessionTime()
 
     // Loop over all LDAP entries
-    for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
+    for (const entry of LDAPResults) {
         try {
             // Check if LDAP user has email, if not, skip
             if (!entry['mail'] || entry['mail'].length === 0) {
@@ -163,7 +170,7 @@ async function syncUsers(): Promise<void> {
 
     // Set all permissions for mailboxes
     console.log("Setting ACL permissions")
-    for (const entry of LDAPResults['searchEntries'] as unknown as LDAPResults[]) {
+    for (const entry of LDAPResults) {
         try {
             if (entry[MailcowPermissions.mailPermROInbox].length != 0)
                 await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
@@ -281,12 +288,11 @@ async function syncUserSOB(entry: LDAPResults): Promise<void> {
         if (!Array.isArray(members['memberFlattened']))
             members['memberFlattened'] = [members['memberFlattened']]
         for (const member of members['memberFlattened']) {
-            const memberResults: SearchResult = await LDAPConnector.search(member, {
+            const memberResults = (await LDAPConnector.search(member, {
                 scope: 'sub',
                 attributes: ['mail']
-            });
-            const memberMail = memberResults['searchEntries'] as unknown as LDAPResults[];
-            await createSOBDB(memberMail[0]['mail'], entry['mail']);
+            }))['searchEntries'] as unknown as LDAPResults[];
+            await createSOBDB(memberResults[0]['mail'], entry['mail']);
         }
     }
 }
@@ -306,6 +312,7 @@ function readConfig(): void {
         'LDAP-MAILCOW_API_HOST',
         'LDAP-MAILCOW_API_KEY',
         'LDAP-MAILCOW_MAX_INACTIVE_COUNT',
+        'LDAP-MAILCOW_MAX_LDAP_RETRY_COUNT',
         'DOVEADM_API_KEY'
     ]
 

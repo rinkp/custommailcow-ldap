@@ -153,7 +153,7 @@ export async function getChangedSOBDB(): Promise<Users[]> {
 
     for (const user of users) {
         if (user.newMailPermSOB != user.mailPermSOB) {
-            console.log(`SOB of ${user.email} changed from ${user.newMailPermSOB} to ${user.mailPermSOB}`)
+            console.log(`SOB of ${user.email} changed from ${user.mailPermSOB} to ${user.newMailPermSOB}`)
             user.mailPermSOB = user.newMailPermSOB
             changedUsers.push(user)
         }
