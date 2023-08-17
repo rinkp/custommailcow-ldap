@@ -1,20 +1,37 @@
 {
   "compilerOptions": {
+    /* Projects */
+    "composite": true,
+
+    /* Language and Environment */
+    "target": "es2016",
+    "lib": [
+      "es6",
+      "es2020",
+      "DOM"
+    ],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+
+    /* Modules */
     "module": "commonjs",
-    "esModuleInterop": true,
-    "target": "ES6",
-    "noImplicitAny": true,
-    "moduleResolution": "node",
+    "rootDir": "src",
+    "resolveJsonModule": true,
+
+    /* Emit */
+    "declaration": true,
     "sourceMap": true,
     "outDir": "dist",
-    "baseUrl": ". ",
-    "paths": {
-      "*": [
-        "node_modules/*"
-      ]
-    }
+
+    /* Interop Constraints */
+    "esModuleInterop": true,                             /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */
+    "forceConsistentCasingInFileNames": true,            /* Ensure that casing is correct in imports. */
+
+    "strictPropertyInitialization": false,
+
+    /* Type Checking */
+    "strict": true,                                      /* Enable all strict type-checking options. */
+    "noImplicitAny": true
   },
   "include": [
     "src/**/*"

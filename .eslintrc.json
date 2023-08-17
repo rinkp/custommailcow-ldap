@@ -1,23 +1,38 @@
 {
-  "env": {
-    "browser": true,
-    "es2021": true
-  },
+  "root": true,
   "parser": "@typescript-eslint/parser",
-  "parserOptions": {
-    "ecmaVersion": 2020,
-    "sourceType": "module"
-  },
-  "plugins": [
-    "@typescript-eslint"
-  ],
-  "extends": [
-    "plugin:@typescript-eslint/eslint-recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
+  "plugins": ["@typescript-eslint", "import"],
+  "extends": ["airbnb-typescript/base"],
   "rules": {
-    "require-jsdoc": 0,
-    "max-len": [1, {"code": 120}],
-    "linebreak-style": [2, "windows"]
+    "linebreak-style": ["error", "windows"],
+    "lines-between-class-members": [
+      "error",
+      "always",
+      {
+        "exceptAfterSingleLine": true
+      }
+    ],
+    "no-plusplus": "off",
+    "no-console": ["warn", { "allow": ["log", "warn", "error"] }],
+    "import/prefer-default-export": "off",
+    "class-methods-use-this": "off",
+    "@typescript-eslint/no-unused-vars": ["warn"],
+    "arrow-body-style": "off",
+    "import/no-cycle": "off",
+    "indent": "off",
+    "@typescript-eslint/indent": [
+      "error",
+      2,
+      {
+        "ignoredNodes": [
+          "FunctionExpression > .params[decorators.length > 0]",
+          "FunctionExpression > .params > :matches(Decorator, :not(:first-child))",
+          "ClassBody.body > PropertyDefinition[decorators.length > 0] > .key"
+        ]
+      }
+    ]
+  },
+  "parserOptions": {
+    "project": ["./tsconfig.json"]
   }
 }

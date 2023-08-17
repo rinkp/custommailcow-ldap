@@ -1,35 +1,35 @@
-﻿import {Column, Entity, PrimaryColumn} from "typeorm";
-import {ActiveUserSetting} from "../types";
+﻿import { Column, Entity, PrimaryColumn } from 'typeorm';
+import { ActiveUserSetting } from '../types';
 
 @Entity()
 export class Users {
-    @PrimaryColumn()
-    email: string;
+  @PrimaryColumn()
+    email!: string;
 
-    @Column()
-    active: ActiveUserSetting;
+  @Column()
+    active!: ActiveUserSetting;
 
-    @Column()
-    inactiveCount: number;
+  @Column()
+    inactiveCount!: number;
 
-    @Column()
-    mailPermRO: string
+  @Column()
+    mailPermRO!: string;
 
-    @Column()
-    mailPermRW: string
+  @Column()
+    mailPermRW!: string;
 
-    @Column()
-    mailPermROInbox: string
+  @Column()
+    mailPermROInbox!: string;
 
-    @Column()
-    mailPermROSent: string
+  @Column()
+    mailPermROSent!: string;
 
-    @Column()
-    mailPermSOB: string
+  @Column()
+    mailPermSOB!: string;
 
-    @Column()
-    newMailPermSOB: string
+  @Column()
+    newMailPermSOB!: string;
 
-    @Column()
-    lastSeen: number;
+  @Column()
+    lastSeen!: number;
 }
