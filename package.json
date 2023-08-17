@@ -18,6 +18,7 @@
     "@types/node": "^20.5.0",
     "axios": "^1.4.0",
     "ldapts": "^6.0.0",
+    "mysql": "^2.18.1",
     "replace-in-file": "^7.0.1",
     "sqlite3": "^5.1.6",
     "ts-mailcow-api": "^0.8.4",

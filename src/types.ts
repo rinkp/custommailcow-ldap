@@ -11,6 +11,7 @@ export interface ContainerConfig {
   API_KEY: string,
   MAX_INACTIVE_COUNT: string,
   MAX_LDAP_RETRY_COUNT: string,
+  DB_PASSWORD: string,
   DOVEADM_API_KEY: string,
   DOVEADM_API_HOST: string
 }
@@ -80,4 +81,103 @@ export enum DoveadmRights {
   expunge = 'expunge',
   create = 'create',
   delete = 'delete',
+}
+
+export interface Forward {
+  forwardAddress: any[];
+}
+
+export interface SOGoCalendarCategoriesColors {
+  Miscellaneous: string;
+  Personal: string;
+  Customer: string;
+  Gifts: string;
+  Business: string;
+  Status: string;
+  Anniversary: string;
+  Vacation: string;
+  Travel: string;
+  Clients: string;
+  Competition: string;
+  Favorites: string;
+  Calls: string;
+  PublicHoliday: string;
+  Issues: string;
+  Meeting: string;
+  Projects: string;
+  Holidays: string;
+  Ideas: string;
+  Birthday: string;
+  Suppliers: string;
+  Followup: string;
+}
+
+export interface SOGoMailIdentity {
+  isDefault?: number;
+  email: string;
+  fullName: string;
+  signature: string;
+  replyTo: string;
+}
+
+export interface Vacation {
+  daysBetweenResponse: number;
+  autoReplyEmailAddresses: string[];
+  days: any[];
+}
+
+export interface Defaults {
+  SOGoCalendarCategoriesColors: SOGoCalendarCategoriesColors;
+  SOGoGravatarEnabled: number;
+  LocaleCode: string;
+  SOGoMailComposeFontSize: number;
+  SOGoMailReceiptNonRecipientAction: string;
+  SOGoDayStartTime: string;
+  SOGoAlternateAvatar: string;
+  SOGoLoginModule: string;
+  SOGoLDAPGroupExpansionEnabled: number;
+  SOGoCalendarCategories: string[];
+  SOGoTOTPEnabled: number;
+  emailSeparatorKeys: number[];
+  SOGoDayEndTime: string;
+  SOGoMailComposeMessageType: string;
+  SOGoCalendarWeekdays: string[];
+  hasActiveExternalSieveScripts: number;
+  SOGoShortDateFormat: string;
+  SOGoMailSignaturePlacement: string;
+  SOGoMailMessageForwarding: string;
+  ckLocaleCode: string;
+  SOGoMailReceiptOutsideDomainAction: string;
+  Forward: Forward;
+  SOGoTimeZone: string;
+  SOGoMailReceiptAllow: string;
+  UserTimeZoneSecondsFromGMT: number;
+  SOGoMailComposeWindow: string;
+  SOGoTimeFormat: string;
+  Vacation: Vacation;
+  SOGoRememberLastModule: number;
+  SOGoCalendarTasksDefaultClassification: string;
+  SOGoPasswordRecoveryMode: string;
+  SOGoRefreshViewCheck: string;
+  SOGoCalendarDefaultReminder: string;
+  SOGoMailAutoSave: number;
+  SOGoMailLabelsColors: { [key: string]: string[] };
+  SOGoLongDateFormat: string;
+  SOGoMailReceiptAnyAction: string;
+  SOGoMailAutoMarkAsReadDelay: number;
+  SOGoDefaultCalendar: string;
+  SOGoMailReplyPlacement: string;
+  SOGoAppointmentSendEMailNotifications: number;
+  SOGoFirstWeekOfYear: string;
+  SOGoSelectedAddressBook: string;
+  SOGoCalendarEventsDefaultClassification: string;
+  SOGoAnimationMode: string;
+  SOGoPasswordRecoveryQuestion: string;
+  SOGoMailAddOutgoingAddresses: number;
+  AuxiliaryMailAccounts: any[];
+  SOGoFirstDayOfWeek: number;
+  SOGoLanguage: string;
+  SOGoContactsCategories: string[];
+  SOGoMailIdentities: SOGoMailIdentity[];
+  SOGoMailDisplayRemoteInlineImages: string;
 }

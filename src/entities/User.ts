@@ -4,32 +4,32 @@ import { ActiveUserSetting } from '../types';
 @Entity()
 export class Users {
   @PrimaryColumn()
-    email!: string;
+  email!: string;
 
   @Column()
-    active!: ActiveUserSetting;
+  active!: ActiveUserSetting;
 
   @Column()
-    inactiveCount!: number;
+  inactiveCount!: number;
 
   @Column()
-    mailPermRO!: string;
+  mailPermRO!: string;
 
   @Column()
-    mailPermRW!: string;
+  mailPermRW!: string;
 
   @Column()
-    mailPermROInbox!: string;
+  mailPermROInbox!: string;
 
   @Column()
-    mailPermROSent!: string;
+  mailPermROSent!: string;
 
   @Column()
-    mailPermSOB!: string;
+  mailPermSOB!: string;
 
   @Column()
-    newMailPermSOB!: string;
+  newMailPermSOB!: string;
 
   @Column()
-    lastSeen!: number;
+  lastSeen!: number;
 }

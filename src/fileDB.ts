@@ -22,7 +22,7 @@ export function setSessionTime(): void {
 /**
  * Initialize database connection. Setup database if it does not yet exist
  */
-export async function initializeDB(): Promise<void> {
+export async function initializeFileDB(): Promise<void> {
   if (!fs.existsSync('./db/ldap-mailcow.sqlite3'))
     fs.writeFileSync('./db/ldap-mailcow.sqlite3', '');
   dataSource.initialize().catch((error) => console.log(error));

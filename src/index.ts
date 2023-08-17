@@ -5,10 +5,10 @@ import {
   checkUserDB, createSOBDB,
   getChangedSOBDB,
   getUncheckedActiveUsers,
-  initializeDB,
+  initializeFileDB,
   setSessionTime,
   updatePermissionsDB,
-} from './filedb';
+} from './fileDB';
 import { replaceInFile, ReplaceInFileConfig } from 'replace-in-file';
 import fs, { PathLike } from 'fs';
 import path from 'path';
@@ -25,6 +25,7 @@ import {
   UserDataDB,
 } from './types';
 import { initializeDovecotAPI, setMailPerm } from './dovecotAPI';
+import { editUserSignature, initializeMailcowDB } from './mailcowDB';
 
 // Set all default variables
 const config: ContainerConfig = {
@@ -40,6 +41,7 @@ const config: ContainerConfig = {
   API_KEY: '',
   MAX_INACTIVE_COUNT: '',
   MAX_LDAP_RETRY_COUNT: '',
+  DB_PASSWORD: '',
   DOVEADM_API_KEY: '',
   DOVEADM_API_HOST: '',
 };
@@ -133,6 +135,7 @@ function readConfig(): void {
     'LDAP-MAILCOW_API_KEY',
     'LDAP-MAILCOW_MAX_INACTIVE_COUNT',
     'LDAP-MAILCOW_MAX_LDAP_RETRY_COUNT',
+    'LDAP-MAILCOW_DB_PASSWORD',
     'DOVEADM_API_KEY',
   ];
 
@@ -369,6 +372,7 @@ async function syncUsers(): Promise<void> {
       console.log(`Changing SOB of ${entry.email}`);
       const SOBs = entry.mailPermSOB.split(';');
       await editUserAPI(entry.email, { sender_acl: SOBs });
+      await editUserSignature(entry.email, SOBs);
     } catch (error) {
       console.log(`Exception throw during handling of ${entry}: ${error}`);
     }
@@ -433,7 +437,8 @@ async function initializeSync(): Promise<void> {
 
   // Start 'connection' with database
   console.log('Initializing');
-  await initializeDB();
+  await initializeFileDB();
+  await initializeMailcowDB(config);
   await initializeMailcowAPI(config);
   await initializeDovecotAPI(config);
 
