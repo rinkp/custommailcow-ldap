@@ -48,6 +48,16 @@ const config: ContainerConfig = {
 
 let LDAPConnector: Client;
 
+export async function getLDAPDisplayName(email: string) : Promise<string> {
+  const LDAPUsers = (await LDAPConnector.search(config.LDAP_BASE_DN, {
+    scope: 'sub',
+    filter: `(&(objectClass=user)(objectCategory=person)(mail=${email})`,
+    attributes: ['displayName'],
+  })).searchEntries as unknown as LDAPResults[];
+
+  return LDAPUsers[0].displayName;
+}
+
 async function getUserMails(users: string[], skipEntry: LDAPResults): Promise<string[]> {
   const result = [];
   for (const user of users) {

@@ -8,7 +8,8 @@
     "lib": [
       "es6",
       "es2020",
-      "DOM"
+      "DOM",
+      "ES2021.String"
     ],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
