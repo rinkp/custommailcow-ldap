@@ -308,7 +308,7 @@ async function syncUsers(): Promise<void> {
       // Check if user exists in DB, if not, add user to DB
       if (!userDataDB.exists) {
         console.log(`Added filedb user: ${email} (Active: ${isActive})`);
-        await addUserDB(email, isActive);
+        await addUserDB(email, displayName, isActive);
         userDataDB.exists = true;
         userDataDB.isActive = isActive;
       }
@@ -372,7 +372,7 @@ async function syncUsers(): Promise<void> {
       console.log(`Changing SOB of ${entry.email}`);
       const SOBs = entry.mailPermSOB.split(';');
       await editUserAPI(entry.email, { sender_acl: SOBs });
-      await editUserSignature(entry.email, SOBs);
+      await editUserSignature(entry, SOBs);
     } catch (error) {
       console.log(`Exception throw during handling of ${entry}: ${error}`);
     }

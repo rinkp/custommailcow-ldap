@@ -10,6 +10,9 @@ export class Users {
   active!: ActiveUserSetting;
 
   @Column()
+  displayName!: string;
+
+  @Column()
   inactiveCount!: number;
 
   @Column()

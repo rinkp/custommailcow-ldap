@@ -10,6 +10,7 @@ const dataSource = new DataSource({
   entities: [
     Users,
   ],
+  synchronize: true,
 });
 
 let userRepository: Repository<Users>;
@@ -45,12 +46,14 @@ export async function getUncheckedActiveUsers(): Promise<Users[]> {
 /**
  * Add a user to the DB
  * @param email - mail entry in the database
+ * @param displayName
  * @param active - whether user is active
  */
-export async function addUserDB(email: string, active: ActiveUserSetting): Promise<void> {
+export async function addUserDB(email: string, displayName: string, active: ActiveUserSetting): Promise<void> {
   const user: Users = Object.assign(new Users(), {
     email: email,
     active: active,
+    displayName: displayName,
     inactiveCount: 0,
     mailPermRO: '',
     changedRO: 0,
@@ -79,14 +82,14 @@ export async function checkUserDB(email: string): Promise<UserDataDB> {
   };
 
   // Find first user with email
-  const user: Users = await userRepository.findOneOrFail({
+  const user: Users | null = await userRepository.findOne({
     where: {
       email: email,
     },
   });
 
   // Check if user exists, if not, return immediately
-  if (user === undefined || user === null) {
+  if (user === null) {
     return dbUserData;
   } else {
     // Update last time user has been checked
