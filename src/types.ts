@@ -16,19 +16,20 @@ export interface ContainerConfig {
   DOVEADM_API_HOST: string
 }
 
-export interface UserDataDB {
+export interface LocalUserData {
   exists: boolean
+  displayName: string,
   isActive: ActiveUserSetting
   inactiveCount: number
 }
 
-export interface UserDataAPI {
+export interface MailcowUserData {
   exists: boolean,
   isActive: number,
   displayName?: string,
 }
 
-export interface LDAPResults {
+export interface ActiveDirectoryUser {
   mail: string
   displayName: string
   userAccountControl: number
@@ -40,7 +41,7 @@ export interface LDAPResults {
   memberFlattened: string[]
 }
 
-export enum MailcowPermissions {
+export enum ActiveDirectoryPermissions {
   mailPermRO = 'mailPermRO',
   mailPermRW = 'mailPermRW',
   mailPermROInbox = 'mailPermROInbox',
@@ -50,26 +51,21 @@ export enum MailcowPermissions {
 
 export type ActiveUserSetting = 0 | 1 | 2;
 
-export interface ACLResults {
+export interface ChangedUsers {
   newUsers: string[];
   removedUsers: string[];
 }
 
-export type DoveadmResponseExchange = [DoveadmResponseData];
-export type DoveadmResponseData = [string, DoveadmExchangeResult[], string];
+export type DovecotRequestData = [string, DovecotData, string];
 
-export type DoveadmRequestExchanges = DoveadmRequestExchange[];
-export type DoveadmRequestExchange = DoveadmRequestData[];
-export type DoveadmRequestData = [string, DoveadmExchangeResult, string];
-
-export interface DoveadmExchangeResult {
+export interface DovecotData {
   mailbox: string
   user: string
   id: string
-  right?: DoveadmRights[]
+  right?: DovecotPermissions[]
 }
 
-export enum DoveadmRights {
+export enum DovecotPermissions {
   admin = 'admin',
   lookup = 'lookup',
   read = 'read',

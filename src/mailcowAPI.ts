@@ -1,22 +1,27 @@
 ﻿import MailCowClient from 'ts-mailcow-api';
-import { ACLEditRequest, MailboxDeleteRequest, MailboxEditRequest, MailboxPostRequest } from 'ts-mailcow-api/src/types';
+import {
+  ACLEditRequest,
+  MailboxEditRequest,
+  MailboxPostRequest,
+} from 'ts-mailcow-api/src/types';
 import * as https from 'https';
-import { ContainerConfig, UserDataAPI } from './types';
-import { Mailbox, MailboxEditAttributes } from 'ts-mailcow-api/dist/types';
+import { MailcowUserData } from './types';
+import {
+  Mailbox,
+  MailboxEditAttributes,
+} from 'ts-mailcow-api/dist/types';
+import { containerConfig } from './index';
 
-// Create MailCowClient based on BASE_URL and API_KEY
+const passwordLength: number = 32;
 let mailcowClient: MailCowClient;
 
-// Set password length
-const passwordLength = 32;
-
 /**
- * Initialize database connection. Setup database if it does not yet exist
+ * Initialize database connection
  */
-export async function initializeMailcowAPI(config: ContainerConfig): Promise<void> {
+export async function initializeMailcowAPI(): Promise<void> {
   mailcowClient = new MailCowClient(
-    config.API_HOST,
-    config.API_KEY,
+    containerConfig.API_HOST,
+    containerConfig.API_KEY,
     {
       httpsAgent: new https.Agent({
         keepAlive: true,
@@ -30,32 +35,30 @@ export async function initializeMailcowAPI(config: ContainerConfig): Promise<voi
  * @param length - length of random password
  */
 function generatePassword(length: number): string {
-  let result = '';
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result: string = '';
+  const characters: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const charactersLength: number = characters.length;
-  for (let i = 0; i < length; i++)
+  for (let i: number = 0; i < length; i++)
     result += characters.charAt(Math.floor(Math.random() * charactersLength));
   return result;
 }
 
 /**
  * Add a user to Mailcow
- * @param email - email of the new user
+ * @param mail - mail of the new user
  * @param name - name of the new user
  * @param active - activity of the new user
  * @param quotum - mailbox size of the new user
  */
-export async function addUserAPI(email: string, name: string, active: number, quotum: number): Promise<void> {
-  // Generate password
+export async function createMailcowUser(mail: string, name: string, active: number, quotum: number): Promise<void> {
   const password: string = generatePassword(passwordLength);
 
-  // Set details of the net mailbox
   const mailboxData: MailboxPostRequest = {
     // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
     'active': active,
     'force_pw_update': false,
-    'local_part': email.split('@')[0],
-    'domain': email.split('@')[1],
+    'local_part': mail.split('@')[0],
+    'domain': mail.split('@')[1],
     'name': name,
     'quota': quotum,
     'password': password,
@@ -64,78 +67,52 @@ export async function addUserAPI(email: string, name: string, active: number, qu
     'tls_enforce_out': false,
   };
 
-  // Create mailbox
   await mailcowClient.mailbox.create(mailboxData);
 
-  // Set ACL data of new mailbox
   const aclData: ACLEditRequest = {
-    'items': email,
+    'items': mail,
     'attr': {
       'user_acl': [
         'spam_alias',
-        //"tls_policy",
         'spam_score',
         'spam_policy',
         'delimiter_action',
-        // "syncjobs",
-        // "eas_reset",
-        // "sogo_profile_reset",
         'quarantine',
-        // "quarantine_attachments",
         'quarantine_notification',
-        // "quarantine_category",
-        // "app_passwds",
-        // "pushover"
       ],
     },
   };
 
-  // Adjust ACL data of new mailbox
   await mailcowClient.mailbox.editUserACL(aclData);
 }
 
 /**
  * Edit user in Mailcow
- * @param email - email of user to be edited
+ * @param mail - mail of user to be edited
  * @param options - options to be edited
  */
-// Todo add send from ACLs
-export async function editUserAPI(email: string, options: Partial<MailboxEditAttributes>): Promise<void> {
+export async function editMailcowUser(mail: string, options: Partial<MailboxEditAttributes>): Promise<void> {
   const mailboxData: MailboxEditRequest = {
-    'items': [email],
+    'items': [mail],
     'attr': options,
   };
+
   await mailcowClient.mailbox.edit(mailboxData);
 }
 
 /**
- * Delete user from Mailcow
- * @param email
- */
-export async function deleteUserAPI(email: string): Promise<void> {
-  const mailboxData: MailboxDeleteRequest = {
-    'mailboxes': [email],
-  };
-  await mailcowClient.mailbox.delete(mailboxData);
-}
-
-/**
  * Check if user exists in Mailcow
- * @param email - email of user
+ * @param mail - mail of user
  */
-export async function checkUserAPI(email: string): Promise<UserDataAPI> {
-  const userData: UserDataAPI = {
+export async function getMailcowUser(mail: string): Promise<MailcowUserData> {
+  const userData: MailcowUserData = {
     exists: false,
     isActive: 0,
   };
 
-  // Get mailbox data from user with email
-  const mailboxData: Mailbox = (await mailcowClient.mailbox.get(email)
-    .catch(e => {
-      throw new Error(e);
-    }))[0];
+  // Should only find one user
+  const mailboxData: Mailbox = (await mailcowClient.mailbox.get(mail))[0];
 
-  // If no data, return immediately, otherwise return response data
   if (!(Object.keys(mailboxData).length === 0 && mailboxData.constructor === Object)) {
     userData.exists = true;
     userData.isActive = mailboxData.active_int;

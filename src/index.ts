@@ -1,34 +1,45 @@
 ﻿import { Client } from 'ldapts';
 import {
-  activityUserDB,
-  addUserDB,
-  checkUserDB, createSOBDB,
-  getChangedSOBDB,
-  getUncheckedActiveUsers,
-  initializeFileDB,
-  setSessionTime,
-  updatePermissionsDB,
-} from './fileDB';
-import { replaceInFile, ReplaceInFileConfig } from 'replace-in-file';
+  updateLocalUserActivity,
+  createLocalUser,
+  getLocalUser,
+  editLocalUserPermissions,
+  getUpdateSOBLocalUsers,
+  getUncheckedLocalActiveUsers,
+  initializeLocalUserDatabase,
+  updateLocalUserPermissions, editLocalUserDisplayName,
+} from './localUserDatabase';
+import {
+  replaceInFile,
+  ReplaceInFileConfig,
+} from 'replace-in-file';
 import fs, { PathLike } from 'fs';
 import path from 'path';
-import { SearchResult } from 'ldapts/Client';
-import { addUserAPI, checkUserAPI, editUserAPI, initializeMailcowAPI } from './mailcowAPI';
-
 import {
-  ACLResults,
+  createMailcowUser,
+  getMailcowUser,
+  editMailcowUser,
+  initializeMailcowAPI,
+} from './mailcowAPI';
+import {
+  ChangedUsers,
   ActiveUserSetting,
   ContainerConfig,
-  LDAPResults,
-  MailcowPermissions,
-  UserDataAPI,
-  UserDataDB,
+  ActiveDirectoryUser,
+  ActiveDirectoryPermissions,
+  MailcowUserData,
+  LocalUserData,
 } from './types';
-import { initializeDovecotAPI, setMailPerm } from './dovecotAPI';
-import { editUserSignature, initializeMailcowDB } from './mailcowDB';
+import {
+  initializeDovecotAPI,
+  setDovecotPermissions,
+} from './dovecotAPI';
+import {
+  editUserSignatures,
+  initializeMailcowDatabase,
+} from './mailcowDatabase';
 
-// Set all default variables
-const config: ContainerConfig = {
+export const containerConfig: ContainerConfig = {
   LDAP_URI: '',
   LDAP_BIND_DN: '',
   LDAP_BIND_DN_PASSWORD: '',
@@ -45,95 +56,131 @@ const config: ContainerConfig = {
   DOVEADM_API_KEY: '',
   DOVEADM_API_HOST: '',
 };
+export const sessionTime: number = new Date().getTime();
+const consoleLogLine: string = '-'.repeat(40);
 
-let LDAPConnector: Client;
+let activeDirectoryConnector: Client;
+let activeDirectoryUsers: ActiveDirectoryUser[] = [];
 
-export async function getLDAPDisplayName(email: string) : Promise<string> {
-  const LDAPUsers = (await LDAPConnector.search(config.LDAP_BASE_DN, {
+
+/**
+ * Search active directory users on mail and return display name
+ * @param mail - mail to search for in Active Directory
+ */
+export async function getActiveDirectoryDisplayName(mail: string) : Promise<string> {
+  const activeDirectoryUser: ActiveDirectoryUser[] = (await activeDirectoryConnector.search(containerConfig.LDAP_BASE_DN, {
     scope: 'sub',
-    filter: `(&(objectClass=user)(objectCategory=person)(mail=${email})`,
+    filter: `(&(objectClass=user)(objectCategory=person)(mail=${mail})`,
     attributes: ['displayName'],
-  })).searchEntries as unknown as LDAPResults[];
+  })).searchEntries as unknown as ActiveDirectoryUser[];
 
-  return LDAPUsers[0].displayName;
-}
-
-async function getUserMails(users: string[], skipEntry: LDAPResults): Promise<string[]> {
-  const result = [];
-  for (const user of users) {
-    const userResults: SearchResult = await LDAPConnector.search(user, {
-      scope: 'sub',
-      attributes: ['mail'],
-    });
-    const userMail = userResults.searchEntries as unknown as LDAPResults[];
-    if (userMail[0].mail != skipEntry.mail) result.push(userMail[0].mail);
-  }
-  return result;
+  // There should only be one resulting entry
+  return activeDirectoryUser[0].displayName;
 }
 
 
 /**
- * Sync all the permissions for ACLs
- * @param entry - current mailbox (users will get permission to this mailbox)
- * @param type - type of permission being considered
+ * Search active directory users on DN and return their mails
+ * @param users - list of DN of users of which to return their mail
+ * @param skipUser - user to not return in the array of mails
  */
-async function syncUserPermissions(entry: LDAPResults, type: MailcowPermissions): Promise<void> {
-  // Get mail permissions group
-  const permissionResults: SearchResult = await LDAPConnector.search(entry[type], {
+async function getActiveDirectoryMails(users: string[], skipUser: ActiveDirectoryUser): Promise<string[]> {
+  const activeDirectoryMails: string[] = [];
+  for (const user of users) {
+    const activeDirectoryUser: ActiveDirectoryUser[] = (await activeDirectoryConnector.search(user, {
+      scope: 'sub',
+      attributes: ['mail'],
+    })) as unknown as ActiveDirectoryUser[];
+
+    // We do not want to set permissions for owner of the mailbox
+    // There should only be one resulting entry
+    if (activeDirectoryUser[0].mail != skipUser.mail) activeDirectoryMails.push(activeDirectoryUser[0].mail);
+  }
+  return activeDirectoryMails;
+}
+
+
+/**
+ * Synchronize all the ACL of a user with Active Directory
+ * @param activeDirectoryUser - user to sync with Active Directory
+ * @param permission - specific permissions to sync on
+ */
+async function synchronizeUserACL(activeDirectoryUser: ActiveDirectoryUser, permission: ActiveDirectoryPermissions): Promise<void> {
+  const activeDirectoryPermissionGroup = (await activeDirectoryConnector.search(activeDirectoryUser[permission], {
     scope: 'sub',
     attributes: ['memberFlattened'],
-  });
+  })).searchEntries[0] as unknown as ActiveDirectoryUser;
 
-  // Update all the permissions
-  await updatePermissionsDB(entry.mail,
-    (permissionResults.searchEntries[0] as unknown as LDAPResults).memberFlattened, type)
-    .then(async (results: ACLResults) => {
-      // Map newUsers to actual emails
-      if (results.newUsers.length != 0) {
-        results.newUsers = await getUserMails(results.newUsers, entry);
+  console.log('CHECKING');
+  console.log(activeDirectoryUser);
 
-        console.log(`User(s) ${results.newUsers} added to ${entry.mail} for ${type}`);
-        await setMailPerm(entry.mail, results.newUsers, type, false);
+  await updateLocalUserPermissions(activeDirectoryUser.mail, activeDirectoryPermissionGroup.memberFlattened, permission)
+    .then(async (changedUsers: ChangedUsers) => {
+      if (changedUsers.newUsers.length != 0) {
+        changedUsers.newUsers = await getActiveDirectoryMails(changedUsers.newUsers, activeDirectoryUser);
+
+        console.log(`User(s) ${changedUsers.newUsers} added to ${activeDirectoryUser.mail} for ${permission}`);
+        await setDovecotPermissions(activeDirectoryUser.mail, changedUsers.newUsers, permission, false);
       }
 
-      // Map oldUsers to actual emails
-      if (results.removedUsers.length != 0) {
-        results.removedUsers = await getUserMails(results.removedUsers, entry);
+      if (changedUsers.removedUsers.length != 0) {
+        changedUsers.removedUsers = await getActiveDirectoryMails(changedUsers.removedUsers, activeDirectoryUser);
 
-        console.log(`User(s) ${results.removedUsers} removed from ${entry.mail} for ${type}`);
-        await setMailPerm(entry.mail, results.removedUsers, type, true);
+        console.log(`User(s) ${changedUsers.removedUsers} removed from ${activeDirectoryUser.mail} for ${permission}`);
+        await setDovecotPermissions(activeDirectoryUser.mail, changedUsers.removedUsers, permission, true);
       }
     },
     );
 }
 
-async function syncUserSOB(entry: LDAPResults): Promise<void> {
-  const SOBResults: SearchResult = await LDAPConnector.search(entry[MailcowPermissions.mailPermSOB], {
+
+/**
+ * Synchronize all the SOB of a user with Active Directory
+ * @param activeDirectoryGroup - group to sync with Active Directory
+ */
+async function synchronizeUserSOB(activeDirectoryGroup: ActiveDirectoryUser): Promise<void> {
+  // Should always be one entry
+  const activeDirectoryPermissionGroup: ActiveDirectoryUser[] = ((await activeDirectoryConnector.search(activeDirectoryGroup[ActiveDirectoryPermissions.mailPermSOB], {
     scope: 'sub',
     attributes: ['memberFlattened'],
-  });
+  })).searchEntries) as unknown as ActiveDirectoryUser[];
 
   // Construct list in database with DN of all committees they are in
   // Get existing list of committees, add new DN as string
-  for (const members of SOBResults.searchEntries as unknown as LDAPResults[]) {
+  for (const members of activeDirectoryPermissionGroup) {
     // For some reason a single entry is returned as string, so turn it into an array
     if (!Array.isArray(members.memberFlattened))
       members.memberFlattened = [members.memberFlattened];
     for (const member of members.memberFlattened) {
-      const memberResults = (await LDAPConnector.search(member, {
+      const memberResults = (await activeDirectoryConnector.search(member, {
         scope: 'sub',
         attributes: ['mail'],
-      })).searchEntries as unknown as LDAPResults[];
-      await createSOBDB(memberResults[0].mail, entry.mail);
+      })).searchEntries as unknown as ActiveDirectoryUser[];
+      await editLocalUserPermissions(memberResults[0].mail, activeDirectoryGroup.mail);
     }
   }
+
+
+  // Singular entries are possible, so turn them into an array
+  // if (!Array.isArray(activeDirectoryPermissionGroup.memberFlattened))
+  //   activeDirectoryPermissionGroup.memberFlattened = [activeDirectoryPermissionGroup.memberFlattened];
+
+  // // All users are given as DN, so we have to get their mail first
+  // for (const activeDirectoryUserDN of activeDirectoryPermissionGroup.memberFlattened) {
+  //   const activeDirectoryUserMail: ActiveDirectoryUser = ((await activeDirectoryConnector.search(activeDirectoryUserDN, {
+  //     scope: 'sub',
+  //     attributes: ['mail'],
+  //   })).searchEntries)[0] as unknown as ActiveDirectoryUser;
+  //   // Own group has to be skipped to prevent clashing permissions
+  //   await editLocalUserPermissions(activeDirectoryUserMail.mail, activeDirectoryGroup.mail);
+  // }
 }
 
+
 /**
- * Impose the configuration of LDAP from the environment
+ * Create config file from environment variables.
  */
-function readConfig(): void {
-  // All required config keys
+function createConfigFromEnvironment(): void {
   const requiredConfigKeys: string[] = [
     'LDAP-MAILCOW_LDAP_URI',
     'LDAP-MAILCOW_LDAP_GC_URI',
@@ -149,34 +196,27 @@ function readConfig(): void {
     'DOVEADM_API_KEY',
   ];
 
-  // Check if all keys are set in the environment
   for (const configKey of requiredConfigKeys) {
-    if (!(configKey in process.env)) throw new Error(`Required environment value ${configKey} is not set`);
-    console.log(`Required environment value ${configKey} has been set`);
-
+    if (!(configKey in process.env)) throw new Error(`Required environment value ${configKey} is not set. `);
     // Add keys to local config variable
-    config[configKey.replace('LDAP-MAILCOW_', '') as keyof ContainerConfig] = process.env[configKey]!;
+    containerConfig[configKey.replace('LDAP-MAILCOW_', '') as keyof ContainerConfig] = process.env[configKey]!;
   }
 
-  // Check if Sogo filter is set
   if ('LDAP-MAILCOW_LDAP_FILTER' in process.env && !('LDAP-MAILCOW_SOGO_LDAP_FILTER' in process.env))
     throw new Error('LDAP-MAILCOW_SOGO_LDAP_FILTER is required when you specify LDAP-MAILCOW_LDAP_FILTER');
 
-  // Check if Mailcow filter is set
   if ('LDAP-MAILCOW_SOGO_LDAP_FILTER' in process.env && !('LDAP-MAILCOW_LDAP_FILTER' in process.env))
     throw new Error('LDAP-MAILCOW_LDAP_FILTER is required when you specify LDAP-MAILCOW_SOGO_LDAP_FILTER');
 
-  // Set Mailcow LDAP filter (has fallback value)
   if ('LDAP-MAILCOW_LDAP_FILTER' in process.env)
-    config.LDAP_FILTER = process.env['LDAP-MAILCOW_LDAP_FILTER']!;
+    containerConfig.LDAP_FILTER = process.env['LDAP-MAILCOW_LDAP_FILTER']!;
 
-
-  // Set Sogo LDAP filter (has fallback value)
   if ('LDAP-MAILCOW_SOGO_LDAP_FILTER' in process.env)
-    config.SOGO_LDAP_FILTER = process.env['LDAP-MAILCOW_SOGO_LDAP_FILTER']!;
+    containerConfig.SOGO_LDAP_FILTER = process.env['LDAP-MAILCOW_SOGO_LDAP_FILTER']!;
 
-  console.log('Read and configured all environment variables');
+  console.log('Successfully created config file. \n\n');
 }
+
 
 /**
  * Compare, backup and save (new) config files
@@ -184,7 +224,6 @@ function readConfig(): void {
  * @param configData - data of new config file
  */
 function applyConfig(configPath: PathLike, configData: string): boolean {
-  // Check if path to config file exists
   if (fs.existsSync(configPath)) {
     // Read and compare original data from config with new data
     const oldConfig: string = fs.readFileSync(configPath, 'utf8');
@@ -221,6 +260,7 @@ function applyConfig(configPath: PathLike, configData: string): boolean {
   return true;
 }
 
+
 /**
  * Replace all variables in template file with new configuration
  */
@@ -229,17 +269,17 @@ async function readPassDBConfig(): Promise<string> {
     files: './templates/dovecot/ldap/passdb.conf',
     from: ['$ldap_gc_uri', '$ldap_domain', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password'],
     to: [
-      config.LDAP_GC_URI,
-      config.LDAP_DOMAIN,
-      config.LDAP_BASE_DN,
-      config.LDAP_BIND_DN,
-      config.LDAP_BIND_DN_PASSWORD,
+      containerConfig.LDAP_GC_URI,
+      containerConfig.LDAP_DOMAIN,
+      containerConfig.LDAP_BASE_DN,
+      containerConfig.LDAP_BIND_DN,
+      containerConfig.LDAP_BIND_DN_PASSWORD,
     ],
   };
-  console.log('Adjust passdb_conf template file');
   await replaceInFile(options);
   return fs.readFileSync('./templates/dovecot/ldap/passdb.conf', 'utf8');
 }
+
 
 /**
  * Replace all variables in template file with new configuration
@@ -249,12 +289,13 @@ async function readDovecotExtraConfig(): Promise<string> {
     files: './templates/dovecot/extra.conf',
     from: ['$doveadm_api_key'],
     to: [
-      config.DOVEADM_API_KEY,
+      containerConfig.DOVEADM_API_KEY,
     ],
   };
   await replaceInFile(options);
   return fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
 }
+
 
 /**
  * Replace all variables in template file with new configuration
@@ -264,11 +305,11 @@ async function readPListLDAP(): Promise<string> {
     files: './templates/sogo/plist_ldap',
     from: ['$ldap_uri', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password', '$sogo_ldap_filter'],
     to: [
-      config.LDAP_URI,
-      config.LDAP_BASE_DN,
-      config.LDAP_BIND_DN,
-      config.LDAP_BIND_DN_PASSWORD,
-      config.SOGO_LDAP_FILTER,
+      containerConfig.LDAP_URI,
+      containerConfig.LDAP_BASE_DN,
+      containerConfig.LDAP_BIND_DN,
+      containerConfig.LDAP_BIND_DN_PASSWORD,
+      containerConfig.SOGO_LDAP_FILTER,
     ],
   };
   console.log('Adjust plist_ldap template file');
@@ -276,185 +317,218 @@ async function readPListLDAP(): Promise<string> {
   return fs.readFileSync('./templates/sogo/plist_ldap', 'utf8');
 }
 
+
+/**
+ * Get all users from Active Directory
+ */
+async function getUserDataFromActiveDirectory(): Promise<void> {
+  let retryCount: number = 0;
+  const maxRetryCount: number = parseInt(containerConfig.MAX_LDAP_RETRY_COUNT);
+
+  // Sometimes LDAP response is empty, retry in those cases
+  while (activeDirectoryUsers.length === 0 && retryCount < maxRetryCount) {
+    if (retryCount > 0) console.warn(`Retry number ${retryCount} to get LDAPResults`);
+    retryCount++;
+
+    activeDirectoryUsers = (await activeDirectoryConnector.search(containerConfig.LDAP_BASE_DN, {
+      scope: 'sub',
+      filter: containerConfig.LDAP_FILTER,
+      attributes: ['mail', 'displayName', 'userAccountControl', 'mailPermRO', 'mailPermRW',
+        'mailPermROInbox', 'mailPermROSent', 'mailPermSOB'],
+    })).searchEntries as unknown as ActiveDirectoryUser[];
+  }
+  if (retryCount === maxRetryCount) throw new Error('Ran into an issue when getting users from Active Directory.');
+  console.log('Successfully got all users from Active Directory. \n\n');
+}
+
+
 /**
  * Synchronise LDAP users with Mailcow mailboxes and users stores in local DB
  */
-async function syncUsers(): Promise<void> {
-
-  // Search for al users, use filter and only display few attributes
-  let LDAPUsers : LDAPResults[] = [];
-  let retryCount = 0;
-
-  while (LDAPUsers.length === 0 && retryCount < parseInt(config.MAX_LDAP_RETRY_COUNT)) {
-    console.log(`Attempt ${retryCount} to get LDAPResults`);
-    retryCount++;
-    LDAPUsers = (await LDAPConnector.search(config.LDAP_BASE_DN, {
-      scope: 'sub',
-      filter: config.LDAP_FILTER,
-      attributes: ['mail', 'displayName', 'userAccountControl', 'mailPermRO', 'mailPermRW',
-        'mailPermROInbox', 'mailPermROSent', 'mailPermSOB'],
-    })).searchEntries as unknown as LDAPResults[];
-  }
-  // Update session time
-  setSessionTime();
-
-  // Loop over all LDAP entries
-  for (const entry of LDAPUsers) {
+async function synchronizeUsersWithActiveDirectory(): Promise<void> {
+  for (const activeDirectoryUser of activeDirectoryUsers) {
     try {
-      // Check if LDAP user has email, if not, skip
-      if (!entry.mail || entry.mail.length === 0) {
-        continue;
-      }
-
-      // Read data from LDAP
-      const email: string = entry.mail;
-      const displayName: string = entry.displayName;
+      if (!activeDirectoryUser.mail || activeDirectoryUser.mail.length === 0) continue;
+      const mail: string = activeDirectoryUser.mail;
+      const displayName: string = activeDirectoryUser.displayName;
       // Active: 0 = no incoming mail/no login, 1 = allow both, 2 = custom state: allow incoming mail/no login
-      const isActive: ActiveUserSetting = (entry.userAccountControl & 0b10) == 2 ? 2 : 1;
-      // Read data of LDAP user van local DB and mailcow
-      const userDataDB: UserDataDB = await checkUserDB(email);
-      const userDataAPI: UserDataAPI = await checkUserAPI(email);
+      const isActive: ActiveUserSetting = (activeDirectoryUser.userAccountControl & 0b10) == 2 ? 2 : 1;
 
-      // Check if user exists in DB, if not, add user to DB
-      if (!userDataDB.exists) {
-        console.log(`Added filedb user: ${email} (Active: ${isActive})`);
-        await addUserDB(email, displayName, isActive);
-        userDataDB.exists = true;
-        userDataDB.isActive = isActive;
+      const localUser: LocalUserData = await getLocalUser(mail);
+      const mailcowUser: MailcowUserData = await getMailcowUser(mail);
+
+      if (!localUser.exists) {
+        console.log(`Adding local user ${mail} (active: ${isActive})`);
+        await createLocalUser(mail, displayName, isActive);
+        localUser.exists = true;
+        localUser.isActive = isActive;
       }
 
-      // Check if user exists in Mailcow, if not, add user to Mailcow
-      if (!userDataAPI.exists) {
-        console.log(`Added Mailcow user: ${email} (Active: ${isActive})`);
-        await addUserAPI(email, displayName, isActive, 256);
-        userDataAPI.exists = true;
-        userDataAPI.isActive = isActive;
-        userDataAPI.displayName = displayName;
+      if (!mailcowUser.exists) {
+        console.log(`Adding Mailcow user ${mail} (active: ${isActive})`);
+        await createMailcowUser(mail, displayName, isActive, 256);
+        mailcowUser.exists = true;
+        mailcowUser.isActive = isActive;
+        mailcowUser.displayName = displayName;
       }
 
-      // Check if user is active in DB, if not, adjust accordingly
-      if (userDataDB.isActive !== isActive) {
-        console.log(`Set ${email} to active ${isActive} in filedb`);
-        await activityUserDB(email, isActive, 0);
+      if (localUser.isActive !== isActive) {
+        console.log(`Set ${mail} to active state ${isActive} in local user database`);
+        await updateLocalUserActivity(mail, isActive, 0);
       }
 
-      // Check if user is active in Mailcow, if not, adjust accordingly
-      if (userDataAPI.isActive !== isActive) {
-        console.log(`Set ${email} to active ${isActive} in Mailcow`);
-        await editUserAPI(email, { active: isActive });
+      if (mailcowUser.isActive !== isActive) {
+        console.log(`Set ${mail} to active state ${isActive} in Mailcow`);
+        await editMailcowUser(mail, { active: isActive });
       }
 
-      // Check if user's name in Mailcow matches LDAP name, adjust accordingly
-      if (userDataAPI.displayName !== displayName) {
-        console.log(`Changed name of ${email} to ${displayName} in Mailcow`);
-        await editUserAPI(email, { name: displayName });
+      if (mailcowUser.displayName !== displayName) {
+        console.log(`Changed displayname for ${mail} to ${displayName} in Mailcow`);
+        await editMailcowUser(mail, { name: displayName });
       }
+
+      if (localUser.displayName !== displayName) {
+        console.log(`Changed displayname for ${mail} to ${displayName} in local database`);
+        await editLocalUserDisplayName(mail, displayName);
+      }
+
     } catch (error) {
-      console.log(`Exception throw during handling of ${entry}: ${error}`);
+      console.error(`Ran into an issue when syncing user ${activeDirectoryUser.mail}. \n\n ${error}`);
     }
   }
 
-  // let count = 0
-
-  // Set all permissions for mailboxes
-  console.log('Setting ACL permissions');
-  for (const entry of LDAPUsers) {
+  // Users that were not checked might have to be removed from mailcow
+  for (const user of await getUncheckedLocalActiveUsers()) {
     try {
-      if (entry[MailcowPermissions.mailPermROInbox].length != 0)
-        await syncUserPermissions(entry, MailcowPermissions.mailPermROInbox);
-      if (entry[MailcowPermissions.mailPermROSent].length != 0)
-        await syncUserPermissions(entry, MailcowPermissions.mailPermROSent);
-      if (entry[MailcowPermissions.mailPermRO].length != 0)
-        await syncUserPermissions(entry, MailcowPermissions.mailPermRO);
-      if (entry[MailcowPermissions.mailPermRW].length != 0)
-        await syncUserPermissions(entry, MailcowPermissions.mailPermRW);
-      if (entry[MailcowPermissions.mailPermSOB].length != 0)
-        await syncUserSOB(entry);
-    } catch (error) {
-      console.log(`Exception throw during handling of ${entry}: ${error}`);
-    }
-  }
+      const mailcowUserData: MailcowUserData = await getMailcowUser(user.email);
+      const localUserData: LocalUserData = await getLocalUser(user.email);
 
-  // Make final changes for SOB
-  console.log('Changing SOB in mailcow');
-  for (const entry of await getChangedSOBDB()) {
-    try {
-      console.log(`Changing SOB of ${entry.email}`);
-      const SOBs = entry.mailPermSOB.split(';');
-      await editUserAPI(entry.email, { sender_acl: SOBs });
-      await editUserSignature(entry, SOBs);
-    } catch (error) {
-      console.log(`Exception throw during handling of ${entry}: ${error}`);
-    }
-  }
+      // We check if user has b
+      const inactiveCount: number = localUserData.inactiveCount;
+      const maxInactiveCount: number = parseInt(containerConfig.MAX_INACTIVE_COUNT);
 
-  // Check all users in DB that have not yet been checked and are active
-  console.log('Checking users that are no longer in AD');
-  for (const user of await getUncheckedActiveUsers()) {
-    try {
-      // Get user data from Mailcow
-      const userDataAPI: UserDataAPI = await checkUserAPI(user.email);
-      const userDataDB: UserDataDB = await checkUserDB(user.email);
-      const inactiveCount = userDataDB.inactiveCount;
-
-      if (inactiveCount > parseInt(config.MAX_INACTIVE_COUNT)) {
-        console.log(`Deactivated user ${user.email} in filedb, not found in LDAP`);
-        await activityUserDB(user.email, 0, 255);
+      if (inactiveCount > maxInactiveCount) {
+        console.log(`Deactivated user ${user.email} in local user database, not found in LDAP`);
+        await updateLocalUserActivity(user.email, 0, 255);
       } else {
         console.log(`Increased inactive count to ${inactiveCount + 1} for ${user.email}`);
-        await activityUserDB(user.email, 2, inactiveCount + 1);
+        await updateLocalUserActivity(user.email, 2, inactiveCount + 1);
       }
 
-      // Check if user is still active, if so, deactivate user
-      if (userDataAPI.isActive && userDataDB.isActive === 0) {
-        console.log(`Deactivated user ${user.email} in Mailcow, not found in LDAP`);
-        await editUserAPI(user.email, { active: 0 });
+      if (mailcowUserData.isActive && localUserData.isActive === 0) {
+        console.log(`Deactivated user ${user.email} in Mailcow, not found in Active Directory`);
+        await editMailcowUser(user.email, { active: 0 });
       }
     } catch (error) {
-      console.log(`Exception throw during handling of ${user}: ${error}`);
+      console.log(`Ran into an issue when checking inactivity of ${user.email}. \n\n ${error}`);
     }
   }
+  console.log('Successfully synced all users with Active Directory. \n\n');
 }
 
+
+/**
+ * Synchronize all the permissions with Active Directory
+ */
+async function synchronizePermissionsWithActiveDirectory(): Promise<void> {
+  for (const activeDirectoryUser of activeDirectoryUsers) {
+    try {
+      // Check if current user has corresponding permissions
+      // Sometimes, the mail considered is a personal account, but it can also be a shared mailbox
+      // (in principle this does not matter though, personal mails _could_ in principle also be shared if wanted)
+      if (activeDirectoryUser[ActiveDirectoryPermissions.mailPermROInbox].length != 0)
+        await synchronizeUserACL(activeDirectoryUser, ActiveDirectoryPermissions.mailPermROInbox);
+      if (activeDirectoryUser[ActiveDirectoryPermissions.mailPermROSent].length != 0)
+        await synchronizeUserACL(activeDirectoryUser, ActiveDirectoryPermissions.mailPermROSent);
+      if (activeDirectoryUser[ActiveDirectoryPermissions.mailPermRO].length != 0)
+        await synchronizeUserACL(activeDirectoryUser, ActiveDirectoryPermissions.mailPermRO);
+      if (activeDirectoryUser[ActiveDirectoryPermissions.mailPermRW].length != 0)
+        await synchronizeUserACL(activeDirectoryUser, ActiveDirectoryPermissions.mailPermRW);
+      if (activeDirectoryUser[ActiveDirectoryPermissions.mailPermSOB].length != 0)
+        await synchronizeUserSOB(activeDirectoryUser);
+    } catch (error) {
+      console.log(`Ran into an issue when syncing permissions of ${activeDirectoryUser.mail}. \n\n ${error}`);
+    }
+  }
+
+  for (const activeDirectoryUser of await getUpdateSOBLocalUsers()) {
+    try {
+      console.log(`Changing SOB of ${activeDirectoryUser.email}`);
+      const SOBs: string[] = activeDirectoryUser.mailPermSOB.split(';');
+      await editMailcowUser(activeDirectoryUser.email, { sender_acl: SOBs });
+      await editUserSignatures(activeDirectoryUser, SOBs);
+    } catch (error) {
+      console.log(`Ran into an issue when syncing send on behalf of ${activeDirectoryUser.email}. \n\n ${error}`);
+    }
+  }
+
+  console.log('Successfully synced all permissions with Active Directory. \n\n');
+}
+
+/**
+ * Read all files, initialize all (database) connections
+ */
 async function initializeSync(): Promise<void> {
-  // Read LDAP configuration
-  readConfig();
+  console.log(consoleLogLine + '\n READING ENVIRONMENT VARIABLES  \n' + consoleLogLine);
+  createConfigFromEnvironment();
 
-  // Connect to LDAP server using config
-  console.log('Binding LDAP');
-  LDAPConnector = new Client({
-    url: config.LDAP_URI,
+
+  console.log(consoleLogLine + '\n SETTING UP CONNECTION WITH ACTIVE DIRECTORY\n' + consoleLogLine);
+  activeDirectoryConnector = new Client({
+    url: containerConfig.LDAP_URI,
   });
-  await LDAPConnector.bind(config.LDAP_BIND_DN, config.LDAP_BIND_DN_PASSWORD);
+  console.log('Successfully connected with active directory. \n\n');
 
-  // Adjust template files
-  console.log('Reading DB config');
-  const passDBConfig: string = await readPassDBConfig();
-  console.log('Reading PList');
-  const pListLDAP: string = await readPListLDAP();
-  console.log('Reading Dovecot config');
-  // Read data in extra config file
-  console.log('Reading Extra config');
-  const extraConfig: string = await readDovecotExtraConfig();
+  await activeDirectoryConnector
+    .bind(containerConfig.LDAP_BIND_DN, containerConfig.LDAP_BIND_DN_PASSWORD)
+    .catch((error) => {
+      throw new Error('Ran into an issue when connecting to Active Directory. \n\n' + error);
+    });
 
-  // Apply all config files, see if any changed
-  console.log('Applying configs');
+
+  console.log(consoleLogLine + '\n ADJUSTING TEMPLATE FILES \n' + consoleLogLine);
+  const passDBConfig: string = await readPassDBConfig()
+    .catch((error) => {
+      throw new Error('Ran into an issue when reading passdb.conf. \n\n' + error);
+    });
+
+  const pListLDAP: string = await readPListLDAP()
+    .catch((error) => {
+      throw new Error('Ran into an issue when reading plist_ldap. \n\n' + error);
+    });
+
+  const extraConfig: string = await readDovecotExtraConfig()
+    .catch((error) => {
+      throw new Error('Ran into an issue when reading extra.conf. \n\n' + error);
+    });
+  console.log('Successfully adjusted all template files. \n\n');
+
+  console.log(consoleLogLine + '\n APPLYING CONFIG FILES \n' + consoleLogLine);
   const passDBConfigChanged: boolean = applyConfig('./conf/dovecot/ldap/passdb.conf', passDBConfig);
   const extraConfigChanged: boolean = applyConfig('./conf/dovecot/extra.conf', extraConfig);
   const pListLDAPChanged: boolean = applyConfig('./conf/sogo/plist_ldap', pListLDAP);
   if (passDBConfigChanged || extraConfigChanged || pListLDAPChanged)
-    console.log('One or more config files have been changed, please restart dovecot-mailcow and sogo-mailcow!');
+    console.warn('One or more config files have been changed, please restart dovecot-mailcow and sogo-mailcow.');
+  console.log('Successfully applied all config files \n\n');
 
-  // Start 'connection' with database
-  console.log('Initializing');
-  await initializeFileDB();
-  await initializeMailcowDB(config);
-  await initializeMailcowAPI(config);
-  await initializeDovecotAPI(config);
+  console.log(consoleLogLine + '\n INITIALIZING DATABASES AND API CLIENTS \n' + consoleLogLine);
+  await initializeLocalUserDatabase();
+  await initializeMailcowDatabase();
+  await initializeMailcowAPI();
+  await initializeDovecotAPI();
+  console.log('Successfully initialized all databases and API clients \n\n');
 
-  // Start sync loop every interval milliseconds
-  console.log('Syncing users');
-  await syncUsers();
+  console.log(consoleLogLine + '\nGETTING USERS FROM ACTIVE DIRECTORY\n' + consoleLogLine);
+  await getUserDataFromActiveDirectory();
+
+  console.log(consoleLogLine + '\n SYNCING ALL USERS \n' + consoleLogLine);
+  await synchronizeUsersWithActiveDirectory();
+
+  console.log(consoleLogLine + '\n SYNCING ALL PERMISSIONS \n' + consoleLogLine);
+  await synchronizePermissionsWithActiveDirectory();
 }
 
+/**
+ * Start sync
+ */
 initializeSync().then(() => console.log('Finished!'));

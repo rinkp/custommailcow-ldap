@@ -1,133 +1,133 @@
 import axios, { AxiosInstance } from 'axios';
 import {
-  ContainerConfig,
-  DoveadmExchangeResult,
-  DoveadmRequestData,
-  DoveadmResponseExchange,
-  DoveadmRights,
-  MailcowPermissions,
+  DovecotData,
+  DovecotRequestData,
+  DovecotPermissions,
+  ActiveDirectoryPermissions,
 } from './types';
+import { containerConfig } from './index';
 
 let dovecotClient: AxiosInstance;
 
-export async function initializeDovecotAPI(config: ContainerConfig): Promise<void> {
+/**
+ * Initialize the Dovecot API
+ */
+export async function initializeDovecotAPI(): Promise<void> {
   dovecotClient = axios.create({
-    // baseURL: `${config.DOVEADM_API_HOST}/doveadm/v1`,
     baseURL: 'http://172.22.1.250:9000/doveadm/v1',
     headers: {
       'Content-Type': 'text/plain',
-      'Authorization': `X-Dovecot-API ${Buffer.from(config.DOVEADM_API_KEY).toString('base64')}`,
+      'Authorization': `X-Dovecot-API ${Buffer.from(containerConfig.DOVEADM_API_KEY).toString('base64')}`,
     },
   });
 }
 
 /**
- * Get all mailboxes of an email
- * @param email - email to get all inboxes from
+ * Get all mailbox subfolders of a mail
+ * @param mail - email to get all subfolders from
  */
-async function getMailboxes(email: string): Promise<string[]> {
-  // Get all mailboxes
-  const response = (await dovecotClient.post(
+async function getMailboxSubFolders(mail: string): Promise<string[]> {
+  const mailboxData: DovecotData[] = ((await dovecotClient.post(
     '',
     [[
       'mailboxList',
       {
-        'user': email,
+        'user': mail,
       },
-      `mailboxList_${email}`,
+      `mailboxList_${mail}`,
     ]],
-  )).data as DoveadmResponseExchange;
+  )).data)[0][1];
 
-  // Convert response to array of mailboxes
-  const mailboxObjects: DoveadmExchangeResult[] = response[0][1];
+  let subFolders: string[] = [];
+  for (let subFolder of mailboxData) {
+    if (subFolder.mailbox.startsWith('Shared')) continue;
+    subFolders.push(subFolder.mailbox);
+  }
 
-  return mailboxObjects.filter(function (item) {
-    return !item.mailbox.startsWith('Shared');
-  }).map((item: DoveadmExchangeResult) => {
-    return item.mailbox;
-  });
+  return subFolders;
 }
 
 /**
- * Set read and write permissions in doveadm
- * @param email - mailbox for which permissions should be set
- * @param users - users that will be getting permissions to email
- * @param type - permissions that will be set
- * @param remove - whether permissions should be removed or added
+ * Set read and write permissions in dovecot
+ * @param mail - mail for which permissions should be set
+ * @param users - users that will be getting permissions to the above mail
+ * @param permission - permissions that will be set
+ * @param removePermission - whether permissions should be removed or added
  */
-export async function setMailPerm(email: string, users: string[], type: MailcowPermissions, remove: boolean) {
-  let mailboxes: string[] = [];
+export async function setDovecotPermissions(mail: string, users: string[], permission: ActiveDirectoryPermissions, removePermission: boolean) {
+  let mailboxSubFolders: string[] = [];
+  let permissionTag;
 
-  let tag;
-  if (type == MailcowPermissions.mailPermROInbox) {
-    mailboxes = mailboxes.concat(['INBOX', 'Inbox']);
-    tag = 'PermROInbox';
+  if (permission == ActiveDirectoryPermissions.mailPermROInbox) {
+    mailboxSubFolders = mailboxSubFolders.concat(['INBOX', 'Inbox']);
+    permissionTag = 'PermROInbox';
   }
 
-  if (type == MailcowPermissions.mailPermROSent) {
-    if (tag === null) {
-      tag = 'PermROSent';
+  if (permission == ActiveDirectoryPermissions.mailPermROSent) {
+    if (permissionTag === null) {
+      permissionTag = 'PermROSent';
     } else {
-      tag = 'PermROInboxSent';
+      permissionTag = 'PermROInboxSent';
     }
-    mailboxes.push('Sent');
+    mailboxSubFolders.push('Sent');
   }
 
-  if (type == MailcowPermissions.mailPermRO || MailcowPermissions.mailPermRW) {
-    mailboxes = await getMailboxes(email);
-    tag = 'PermRO';
+  if (permission == ActiveDirectoryPermissions.mailPermRO || ActiveDirectoryPermissions.mailPermRW) {
+    mailboxSubFolders = await getMailboxSubFolders(mail);
+    permissionTag = 'PermRO';
   }
 
-  // Create one big request for all mailboxes and users that should be added
-  const requests = [];
-  for (const mailbox of mailboxes) {
+  // Dovecot API requests are very unclear and badly documented
+  // The idea; you can create an array of requests and send it as one big request
+  const dovecotRequests : DovecotRequestData[] = [];
+  for (const subFolder of mailboxSubFolders) {
     for (const user of users) {
 
       let rights = [
-        DoveadmRights.lookup,
-        DoveadmRights.read,
-        DoveadmRights.write,
-        DoveadmRights.write_seen,
+        DovecotPermissions.lookup,
+        DovecotPermissions.read,
+        DovecotPermissions.write,
+        DovecotPermissions.write_seen,
       ];
 
-      if (type === MailcowPermissions.mailPermRW) {
+      if (permission === ActiveDirectoryPermissions.mailPermRW) {
         rights = rights.concat([
-          DoveadmRights.write_deleted,
-          DoveadmRights.insert,
-          DoveadmRights.post,
-          DoveadmRights.expunge,
-          DoveadmRights.create,
-          DoveadmRights.delete,
+          DovecotPermissions.write_deleted,
+          DovecotPermissions.insert,
+          DovecotPermissions.post,
+          DovecotPermissions.expunge,
+          DovecotPermissions.create,
+          DovecotPermissions.delete,
         ]);
       }
 
-      const request: DoveadmRequestData = [
-        // Check if users should be removed or added
-        remove ? 'aclRemove' : 'aclSet',
+      const dovecotRequest: DovecotRequestData = [
+        removePermission ? 'aclRemove' : 'aclSet',
         {
-          'user': email,
+          'user': mail,
           'id': `user=${user}`,
-          'mailbox': mailbox,
+          'mailbox': subFolder,
           'right': rights,
         },
-        type === MailcowPermissions.mailPermRW ? `PermRW_${email}_${user}` : `${tag}_${email}_${user}`,
+        permission === ActiveDirectoryPermissions.mailPermRW ? `PermRW_${mail}_${user}` : `${permissionTag}_${mail}_${user}`,
       ];
 
-      requests.push(request);
+      dovecotRequests.push(dovecotRequest);
     }
   }
 
-  if (requests.length > 25) {
-    const chunkSize = 25;
-    for (let i = 0; i < chunkSize; i += chunkSize) {
+  // There is a max size of the requests
+  // Break them up in smaller pieces if necessary
+  const dovecotMaxRequestSize: number = 25;
+  if (dovecotRequests.length > dovecotMaxRequestSize) {
+    for (let i: number = 0; i < dovecotMaxRequestSize; i += dovecotMaxRequestSize) {
       await dovecotClient.post(
-        '', requests.slice(i, i + chunkSize),
+        '', dovecotRequests.slice(i, i + dovecotMaxRequestSize),
       );
     }
   } else {
-    // Post request
     await dovecotClient.post(
-      '', requests,
+      '', dovecotRequests,
     );
   }
 }
