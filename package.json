@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@types/node": "^20.5.0",
-    "axios": "^1.4.0",
+    "axios": "^1.6.2",
     "ldapts": "^6.0.0",
     "mysql": "^2.18.1",
     "replace-in-file": "^7.0.1",

@@ -118,11 +118,12 @@ export async function setDovecotPermissions(mail: string, users: string[], permi
 
   // There is a max size of the requests
   // Break them up in smaller pieces if necessary
-  const dovecotMaxRequestSize: number = 25;
+  // NOTE from Dovecot docs: It is not guaranteed that requests are processed in order or that the doveadm server does not crash
+  const dovecotMaxRequestSize: number = 20;
   if (dovecotRequests.length > dovecotMaxRequestSize) {
-    for (let i: number = 0; i < dovecotMaxRequestSize; i += dovecotMaxRequestSize) {
+    for (let requestsDone: number = 0; requestsDone < dovecotRequests.length; requestsDone += dovecotMaxRequestSize) {
       await dovecotClient.post(
-        '', dovecotRequests.slice(i, i + dovecotMaxRequestSize),
+        '', dovecotRequests.slice(requestsDone, requestsDone + dovecotMaxRequestSize),
       );
     }
   } else {
