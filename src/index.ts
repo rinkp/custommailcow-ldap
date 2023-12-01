@@ -334,6 +334,7 @@ async function getUserDataFromActiveDirectory(): Promise<void> {
         'mailPermROInbox', 'mailPermROSent', 'mailPermSOB'],
     })).searchEntries as unknown as ActiveDirectoryUser[];
   }
+  console.log(retryCount, maxRetryCount);
   if (retryCount === maxRetryCount) throw new Error('Ran into an issue when getting users from Active Directory.');
   console.log('Successfully got all users from Active Directory. \n\n');
 }
