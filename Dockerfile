@@ -1,5 +1,5 @@
 # We build our container using node:16-alpine
-FROM node:16-alpine AS builder
+FROM node:20-alpine AS builder
 ENV NODE_ENV=development
 
 # Change dir to install dir.
@@ -22,7 +22,7 @@ RUN npx tsc
 
 
 # Create production container.
-FROM node:16-alpine AS prod
+FROM node:20-alpine AS prod
 
 # Set correct dir.
 WORKDIR /app

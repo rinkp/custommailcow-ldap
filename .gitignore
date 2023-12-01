@@ -22,3 +22,5 @@ db/**/*
 # Editors
 .idea
 *.iml
+
+tsconfig.tsbuildinfo

@@ -111,9 +111,6 @@ async function synchronizeUserACL(activeDirectoryUser: ActiveDirectoryUser, perm
     attributes: ['memberFlattened'],
   })).searchEntries[0] as unknown as ActiveDirectoryUser;
 
-  console.log('CHECKING');
-  console.log(activeDirectoryUser);
-
   await updateLocalUserPermissions(activeDirectoryUser.mail, activeDirectoryPermissionGroup.memberFlattened, permission)
     .then(async (changedUsers: ChangedUsers) => {
       if (changedUsers.newUsers.length != 0) {
@@ -346,6 +343,7 @@ async function getUserDataFromActiveDirectory(): Promise<void> {
  * Synchronise LDAP users with Mailcow mailboxes and users stores in local DB
  */
 async function synchronizeUsersWithActiveDirectory(): Promise<void> {
+
   for (const activeDirectoryUser of activeDirectoryUsers) {
     try {
       if (!activeDirectoryUser.mail || activeDirectoryUser.mail.length === 0) continue;
@@ -357,6 +355,8 @@ async function synchronizeUsersWithActiveDirectory(): Promise<void> {
       const localUser: LocalUserData = await getLocalUser(mail);
       const mailcowUser: MailcowUserData = await getMailcowUser(mail);
 
+      // console.log('start checking local user');
+      
       if (!localUser.exists) {
         console.log(`Adding local user ${mail} (active: ${isActive})`);
         await createLocalUser(mail, displayName, isActive);
@@ -456,7 +456,7 @@ async function synchronizePermissionsWithActiveDirectory(): Promise<void> {
       console.log(`Changing SOB of ${activeDirectoryUser.email}`);
       const SOBs: string[] = activeDirectoryUser.mailPermSOB.split(';');
       await editMailcowUser(activeDirectoryUser.email, { sender_acl: SOBs });
-      await editUserSignatures(activeDirectoryUser, SOBs);
+      // await editUserSignatures(activeDirectoryUser, SOBs);
     } catch (error) {
       console.log(`Ran into an issue when syncing send on behalf of ${activeDirectoryUser.email}. \n\n ${error}`);
     }
