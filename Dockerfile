@@ -9,7 +9,7 @@ WORKDIR /usr/src/custommailcow-ldap
 COPY package*.json .
 
 # Install dependencies
-RUN npm ci
+RUN yarn install
 
 # Copy over the tsconfig
 COPY tsconfig.json .
@@ -31,7 +31,7 @@ WORKDIR /app
 COPY package*.json .
 
 # Install production dependencies
-RUN npm install --only=production
+RUN yarn install --production
 
 # Copy over the template data
 COPY templates /app/templates
