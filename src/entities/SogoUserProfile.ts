@@ -2,11 +2,11 @@
 @Entity()
 export class SogoUserProfile {
   @PrimaryColumn()
-  c_uid!: string;
+    c_uid!: string;
 
   @Column()
-  c_defaults!: string;
+    c_defaults!: string;
 
   @Column()
-  c_settings!: string;
+    c_settings!: string;
 }

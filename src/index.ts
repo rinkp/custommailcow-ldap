@@ -11,7 +11,6 @@ import {
 } from './localUserDatabase';
 import {
   replaceInFile,
-  ReplaceInFileConfig,
 } from 'replace-in-file';
 import fs, { PathLike } from 'fs';
 import path from 'path';
@@ -35,7 +34,6 @@ import {
   setDovecotPermissions,
 } from './dovecotAPI';
 import {
-  editUserSignatures,
   initializeMailcowDatabase,
 } from './mailcowDatabase';
 
@@ -262,7 +260,7 @@ function applyConfig(configPath: PathLike, configData: string): boolean {
  * Replace all variables in template file with new configuration
  */
 async function readPassDBConfig(): Promise<string> {
-  const options: ReplaceInFileConfig = {
+  await replaceInFile({
     files: './templates/dovecot/ldap/passdb.conf',
     from: ['$ldap_gc_uri', '$ldap_domain', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password'],
     to: [
@@ -272,8 +270,7 @@ async function readPassDBConfig(): Promise<string> {
       containerConfig.LDAP_BIND_DN,
       containerConfig.LDAP_BIND_DN_PASSWORD,
     ],
-  };
-  await replaceInFile(options);
+  });
   return fs.readFileSync('./templates/dovecot/ldap/passdb.conf', 'utf8');
 }
 
@@ -282,14 +279,13 @@ async function readPassDBConfig(): Promise<string> {
  * Replace all variables in template file with new configuration
  */
 async function readDovecotExtraConfig(): Promise<string> {
-  const options: ReplaceInFileConfig = {
+  await replaceInFile({
     files: './templates/dovecot/extra.conf',
     from: ['$doveadm_api_key'],
     to: [
       containerConfig.DOVEADM_API_KEY,
     ],
-  };
-  await replaceInFile(options);
+  });
   return fs.readFileSync('./templates/dovecot/extra.conf', 'utf8');
 }
 
@@ -298,7 +294,8 @@ async function readDovecotExtraConfig(): Promise<string> {
  * Replace all variables in template file with new configuration
  */
 async function readPListLDAP(): Promise<string> {
-  const options: ReplaceInFileConfig = {
+  console.log('Adjust plist_ldap template file');
+  await replaceInFile({
     files: './templates/sogo/plist_ldap',
     from: ['$ldap_uri', '$ldap_base_dn', '$ldap_bind_dn', '$ldap_bind_dn_password', '$sogo_ldap_filter'],
     to: [
@@ -308,9 +305,7 @@ async function readPListLDAP(): Promise<string> {
       containerConfig.LDAP_BIND_DN_PASSWORD,
       containerConfig.SOGO_LDAP_FILTER,
     ],
-  };
-  console.log('Adjust plist_ldap template file');
-  await replaceInFile(options);
+  });
   return fs.readFileSync('./templates/sogo/plist_ldap', 'utf8');
 }
 
@@ -357,7 +352,7 @@ async function synchronizeUsersWithActiveDirectory(): Promise<void> {
       const mailcowUser: MailcowUserData = await getMailcowUser(mail);
 
       // console.log('start checking local user');
-      
+
       if (!localUser.exists) {
         console.log(`Adding local user ${mail} (active: ${isActive})`);
         await createLocalUser(mail, displayName, isActive);
@@ -532,4 +527,4 @@ async function initializeSync(): Promise<void> {
 /**
  * Start sync
  */
-initializeSync().then(() => console.log('Finished!'));
+void initializeSync().then(() => console.log('Finished!'));
