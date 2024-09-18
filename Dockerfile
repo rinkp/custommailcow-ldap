@@ -6,7 +6,8 @@ ENV NODE_ENV=development
 WORKDIR /usr/src/custommailcow-ldap
 
 # Copy over the package and package-lock
-COPY package*.json .
+COPY package.json .
+COPY yarn.lock .
 
 # Install dependencies
 RUN yarn install

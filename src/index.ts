@@ -88,11 +88,12 @@ async function getActiveDirectoryMails(users: string[], skipUser: ActiveDirector
     const activeDirectoryUser: ActiveDirectoryUser[] = (await activeDirectoryConnector.search(user, {
       scope: 'sub',
       attributes: ['mail'],
-    })) as unknown as ActiveDirectoryUser[];
+    })).searchEntries as unknown as ActiveDirectoryUser[];
 
     // We do not want to set permissions for owner of the mailbox
     // There should only be one resulting entry
     if (activeDirectoryUser[0].mail != skipUser.mail) activeDirectoryMails.push(activeDirectoryUser[0].mail);
+    await new Promise(resolve => setTimeout(resolve, 10));
   }
   return activeDirectoryMails;
 }
@@ -139,6 +140,7 @@ async function synchronizeUserSOB(activeDirectoryGroup: ActiveDirectoryUser): Pr
     scope: 'sub',
     attributes: ['memberFlattened'],
   })).searchEntries) as unknown as ActiveDirectoryUser[];
+  console.error('SOB', activeDirectoryPermissionGroup);
 
   // Construct list in database with DN of all committees they are in
   // Get existing list of committees, add new DN as string
@@ -159,7 +161,7 @@ async function synchronizeUserSOB(activeDirectoryGroup: ActiveDirectoryUser): Pr
   // Singular entries are possible, so turn them into an array
   // if (!Array.isArray(activeDirectoryPermissionGroup.memberFlattened))
   //   activeDirectoryPermissionGroup.memberFlattened = [activeDirectoryPermissionGroup.memberFlattened];
-
+  //
   // // All users are given as DN, so we have to get their mail first
   // for (const activeDirectoryUserDN of activeDirectoryPermissionGroup.memberFlattened) {
   //   const activeDirectoryUserMail: ActiveDirectoryUser = ((await activeDirectoryConnector.search(activeDirectoryUserDN, {
@@ -331,6 +333,7 @@ async function getUserDataFromActiveDirectory(): Promise<void> {
   }
   console.log(retryCount, maxRetryCount);
   if (retryCount === maxRetryCount) throw new Error('Ran into an issue when getting users from Active Directory.');
+  console.error(activeDirectoryUsers);
   console.log('Successfully got all users from Active Directory. \n\n');
 }
 
